@@ -11,6 +11,7 @@ notebooks\.ipynb_checkpoints
 datasets/*
 **/data/
 **/models/
+**/data_1/
 
 # windows
 __pycache__/*
