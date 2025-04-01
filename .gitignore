@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+Icon
+.venv
+
+# ipynb_checkpoints
+notebooks\.ipynb_checkpoints
+.vscode
+**/__pycache__/
+
+datasets/*
+data/*
+models/*
+
+# windows
+__pycache__/*
