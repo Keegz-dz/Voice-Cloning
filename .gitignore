@@ -9,8 +9,8 @@ notebooks\.ipynb_checkpoints
 **/__pycache__/
 
 datasets/*
-data/*
-models/*
+**/data/
+**/models/
 
 # windows
 __pycache__/*
