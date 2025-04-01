@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 from tqdm import tqdm
 
-import audio
-from config import librispeech_datasets, anglophone_nationalites
+from temp import audio
+from temp import config
 from params import *
 
 

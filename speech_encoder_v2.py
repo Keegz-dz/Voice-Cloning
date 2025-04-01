@@ -1,5 +1,4 @@
-from params import model_hidden_size, model_num_layers, model_embedding_size
-from params import mel_n_channels
+from params import *
 from scipy.interpolate import interp1d
 from sklearn.metrics import roc_curve
 from torch.nn.utils import clip_grad_norm_

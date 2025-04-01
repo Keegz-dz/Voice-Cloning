@@ -7,22 +7,21 @@ The final output is an interactive animation that displays the similarity curves
 while playing the audio in sync with the plot.
 """
 import sys
-sys.path.append('temp')
-sys.path.append('Voice-Encoder')
+sys.path.append('.')
 
-from audio_preprocessing import preprocess_audio
+from data_preprocessing import *
 import sounddevice
 from speech_encoder_v2 import SpeechEncoderV2
 from params import *
-
-from utils.speaker_diarisation_utils import interactive_diarization
+from utils import *
 from pathlib import Path
 import torch
 import librosa
 import torchaudio
 import numpy as np
-import audio
+from temp import *
 from typing import Union, List
+from visualisations import *
 
 def embed_frames_batch(frames_batch):
     """
@@ -152,7 +151,7 @@ def embed_speaker(wavs: List[np.ndarray], **kwargs):
         return raw_embed / np.linalg.norm(raw_embed, 2)
 
 
-waveform, sample_rate = torchaudio.load("demo_speaker_diarisation.mp3")
+waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")
 wav = preprocess_audio(waveform, sample_rate)
 
 # Cut reference segments from the interview. Each segment (given in seconds) is assumed to contain a single speaker.
@@ -167,7 +166,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 loss_device = torch.device("cpu")
 
 encoder = SpeechEncoderV2(device,device)
-checkpoints = torch.load("Voice-Encoder\models\speech_encoder_transformer\encoder_demo2.pt") 
+checkpoints = torch.load("models\speech_encoder_transformer\encoder(0.096).pt") 
 encoder.load_state_dict(checkpoints['model_state'])
 encoder.eval()
 
