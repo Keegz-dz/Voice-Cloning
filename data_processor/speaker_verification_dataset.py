@@ -7,7 +7,7 @@
 from data_processor.random_cycler import RandomCycler
 from data_processor.speaker_batch import SpeakerBatch
 from data_processor.speaker import Speaker
-from params_data import partials_n_frames
+from params import partials_n_frames
 from torch.utils.data import Dataset, DataLoader
 from pathlib import Path
 

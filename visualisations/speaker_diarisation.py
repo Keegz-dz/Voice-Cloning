@@ -13,7 +13,7 @@ sys.path.append('Voice-Encoder')
 from audio_preprocessing import preprocess_audio
 import sounddevice
 from speech_encoder_v2 import SpeechEncoderV2
-from params_data import *
+from params import *
 
 from utils.speaker_diarisation_utils import interactive_diarization
 from pathlib import Path

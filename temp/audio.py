@@ -1,5 +1,5 @@
 from scipy.ndimage.morphology import binary_dilation
-from params_data import *
+from params import *
 from pathlib import Path
 from typing import Optional, Union
 from warnings import warn

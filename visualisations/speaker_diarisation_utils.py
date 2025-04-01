@@ -13,7 +13,7 @@ import numpy as np
 import sys
 sys.path.append("temp")
 
-from params_data import sampling_rate
+from params import sampling_rate
 
 
 # Matplotlib’s Colour configuration
