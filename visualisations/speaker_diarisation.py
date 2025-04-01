@@ -151,7 +151,8 @@ def embed_speaker(wavs: List[np.ndarray], **kwargs):
         return raw_embed / np.linalg.norm(raw_embed, 2)
 
 
-waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")
+waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
+# waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
 wav = preprocess_audio(waveform, sample_rate)
 
 # Cut reference segments from the interview. Each segment (given in seconds) is assumed to contain a single speaker.
