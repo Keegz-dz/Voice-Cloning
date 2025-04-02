@@ -5,6 +5,8 @@ mel_n_channels = 40
 
 # Audio
 sampling_rate = 16000
+hop_length = int(sampling_rate * mel_window_length / 1000)
+
 # Number of spectrogram frames in a partial utterance
 partials_n_frames = 160     # 1600 msW
 # Number of spectrogram frames at inference

@@ -20,7 +20,6 @@ class Embed():
         """
         frames = torch.from_numpy(frames_batch).to(device)
         embed = self.encoder.forward(frames)
-
         return embed
 
 
@@ -56,7 +55,7 @@ class Embed():
         samples_per_frame = int((sampling_rate * mel_window_step / 1000))
         n_frames = int(np.ceil((n_samples + 1) / samples_per_frame))
         frame_step = max(int(np.round(partial_utterance_n_frames * (1 - overlap))), 1)
-        
+
         # Compute the slices
         wav_slices, mel_slices = [], []
         steps = max(1, n_frames - partial_utterance_n_frames + frame_step + 1)

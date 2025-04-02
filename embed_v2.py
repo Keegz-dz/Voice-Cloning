@@ -3,6 +3,7 @@ from temp import *
 from typing import Union, List
 import torch
 import math 
+from temp import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -24,7 +25,6 @@ class EmbedV2():
         """
         frames = torch.from_numpy(frames_batch).to(device)
         embed = self.encoder.forward(frames)
-
         return embed
 
     def calculate_partial_slice(self, n_samples: int, 
@@ -52,9 +52,10 @@ class EmbedV2():
         n_frames = (n_samples - win_length) // hop_length + 1
         
         # Validate input dimensions
-        if utt_frames > n_frames:
-            raise ValueError(f"Partial utterance length ({utt_frames} frames) exceeds total frames ({n_frames})")
-        
+        utt_frames = min(utt_frames, n_frames)
+        if utt_frames < 1:
+            return [slice(0, n_samples)], [slice(0, n_frames)]
+    
         # Calculate mel spectrogram slices first
         mel_slices = []
         mel_step = max(1, int(utt_frames * (1 - overlap)))
@@ -92,7 +93,36 @@ class EmbedV2():
             waveform_slices.append(slice(start_sample, end_sample))
         
         return waveform_slices, mel_slices
-    
-    def embed_utterance(self, wav):
+
+    def embed_utterance(self, wav, return_partials=False):
+        """"
+        Computes an embedding for a single utterance
+        Args:
+            wav: the waveform as a numpy array of float32 of shape (n_samples,)
+        Returns:
+            the embedding as a numpy array of float32 of shape (model_embedding_size,)
+        """
         wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
+        frames = wav_to_mel_spectrogram(wav = wav)
+        partial_embeddings = np.array([self.embed_frames_batch(frames[mel_slice]) for mel_slice in mel_slices])
         
+        raw_embeddings = np.mean(partial_embeddings.detach().cpu().numpy() , axis=0)
+        embeddings = raw_embeddings/np.linalg.norm(x = raw_embeddings, ord=2)
+        
+        if return_partials:
+            return embeddings, partial_embeddings, wav_slices
+        else:
+            return embeddings
+    
+    def embed_the_speaker(self, wav: list):
+        """
+        Computes an embedding for a list of wavs presumambly 
+        from the same speaker.
+        Args:
+            wav: a list of waveforms as numpy arrays of float32 of shape (n_samples,)
+        Returns:
+            the embeddings as a numpy array of float32 of shape (n_speakers, model_embedding_size)
+        """
+        raw_embeddings = np.mean([self.embed_utterance(wav= wav_) for wav_ in wav], axis = 0)
+        embeddings = raw_embeddings/np.linalg.norm(x = raw_embeddings, ord=2)
+        return embeddings
