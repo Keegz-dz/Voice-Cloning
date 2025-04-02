@@ -19,12 +19,12 @@ import torch
 import librosa
 import torchaudio
 import numpy as np
-from temp import *
+# from temp import *
 from typing import Union, List
 from visualisations import *
 from embed import Embed
 from data_preprocessing import audio_preprocessing_old
-# from embed_v2 import EmbedV2
+from embed_v2 import EmbedV2
 
 # waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
 waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
@@ -48,7 +48,7 @@ encoder.eval()
 
 print("Running the continuous embedding on CPU, this might take a while...")
 
-embedder = Embed(encoder)
+embedder = EmbedV2(encoder)
 
 # Compute a continuous embedding for the full interview.
 _, cont_embeds, wav_splits = embedder.embed_utterance(wav, return_partials=True)

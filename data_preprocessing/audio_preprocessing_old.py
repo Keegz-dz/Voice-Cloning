@@ -8,12 +8,18 @@ import os
 import soundfile as sf
 
 # Constants 
-TARGET_SAMPLE_RATE = 16000          
-AUDIO_NORM_TARGET_DBFS = -30        # Desired loudness level in dBFS
-VAD_WINDOW_LENGTH = 30              # VAD window length in milliseconds 
-VAD_MOVING_AVERAGE_WIDTH = 7        # Width for smoothing VAD results
-VAD_MAX_SILENCE_LENGTH = 6          # Maximum consecutive silent windows allowed
-INT16_MAX = (2 ** 15) - 1           # Maximum 16-bit integer value
+TARGET_SAMPLE_RATE = 16000
+AUDIO_NORM_TARGET_DBFS = -30
+VAD_WINDOW_LENGTH = 30  # milliseconds
+VAD_MOVING_AVERAGE_WIDTH = 7
+VAD_MAX_SILENCE_LENGTH = 6
+INT16_MAX = (2 ** 15) - 1
+
+# Mel spectrogram extraction constants
+MEL_WINDOW_LENGTH = 25  # milliseconds
+MEL_WINDOW_STEP = 10    # milliseconds
+MEL_N_CHANNELS = 40
+
 TEST_OUTPUT_DIR = "test"            # Directory for debug audio output
 
 def resample_audio(waveform: np.ndarray, orig_sr: int, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -23,6 +29,32 @@ def resample_audio(waveform: np.ndarray, orig_sr: int, target_sr: int = TARGET_S
     if orig_sr != target_sr:
         waveform = librosa.resample(waveform, orig_sr=orig_sr, target_sr=target_sr)
     return waveform
+
+def wav_to_mel_spectrogram(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -> np.ndarray:
+    """
+    Computes a mel spectrogram (not in log-scale) from the input audio waveform.
+    This function mirrors the mel spectrogram computation in the original audio module.
+
+    Args:
+        wav (np.ndarray): The input audio waveform as a NumPy array.
+        sample_rate (int, optional): The sampling rate of the audio. Defaults to TARGET_SAMPLE_RATE.
+
+    Returns:
+        np.ndarray: The mel spectrogram as a NumPy array, with time as the first dimension.
+    """
+    n_fft = int(sample_rate * MEL_WINDOW_LENGTH / 1000)
+    hop_length = int(sample_rate * MEL_WINDOW_STEP / 1000)
+    # Compute the mel spectrogram using librosa
+    mel_spec = librosa.feature.melspectrogram(
+        y=wav,
+        sr=sample_rate,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=MEL_N_CHANNELS
+    )
+    
+    # Transpose so that time is the first dimension (frames x frequency bins)
+    return mel_spec.astype(np.float32).T
 
 def normalize_volume(wav: np.ndarray, target_dBFS: float = AUDIO_NORM_TARGET_DBFS) -> np.ndarray:
     """Normalizes the audio waveform to a target dBFS level."""

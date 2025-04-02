@@ -3,7 +3,8 @@ from temp import *
 from typing import Union, List
 import torch
 import math 
-from temp import *
+from temp import audio
+from data_preprocessing import audio_preprocessing_old
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -103,8 +104,27 @@ class EmbedV2():
             the embedding as a numpy array of float32 of shape (model_embedding_size,)
         """
         wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
-        frames = wav_to_mel_spectrogram(wav = wav)
-        partial_embeddings = np.array([self.embed_frames_batch(frames[mel_slice]) for mel_slice in mel_slices])
+        frames = audio_preprocessing_old.wav_to_mel_spectrogram(wav = wav)
+        
+
+
+
+        sliced_frames = [frames[mel_slice] for mel_slice in mel_slices]
+        max_length = 160  # or however you determine the desired frame length
+        feature_dim = sliced_frames[0].shape[1]
+
+        batch_of_frames = np.zeros((len(sliced_frames), max_length, feature_dim), dtype=frames.dtype)
+
+        for i, sliced in enumerate(sliced_frames):
+            length = sliced.shape[0]
+            # Assign only up to the length of the sliced array
+            batch_of_frames[i, :length, :] = sliced
+
+
+
+
+
+        partial_embeddings = self.embed_frames_batch(frames_batch= batch_of_frames)
         
         raw_embeddings = np.mean(partial_embeddings.detach().cpu().numpy() , axis=0)
         embeddings = raw_embeddings/np.linalg.norm(x = raw_embeddings, ord=2)
