@@ -12,7 +12,20 @@ class EmbedV2():
         self.encoder.to(device)
 
     def embed_frames_batch(self, frames_batch):
-        pass
+        """
+        Computes embeddings for a batch of mel spectrogram.
+
+        Args:
+            frames_batch: a batch mel of spectrogram as a numpy array of float32 of shape
+            (batch_size, n_frames, n_channels)
+
+        Returns:
+          the embeddings as a numpy array of float32 of shape (batch_size, model_embedding_size)
+        """
+        frames = torch.from_numpy(frames_batch).to(device)
+        embed = self.encoder.forward(frames)
+
+        return embed
 
     def calculate_partial_slice(self, n_samples: int, 
                            utt_frames: int,
@@ -80,3 +93,6 @@ class EmbedV2():
         
         return waveform_slices, mel_slices
     
+    def embed_utterance(self, wav):
+        wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
+        
