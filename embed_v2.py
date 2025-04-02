@@ -28,6 +28,8 @@ class EmbedV2():
         embed = self.encoder.forward(frames)
         return embed
 
+
+    #This method is incomplete, need to fix it
     def calculate_partial_slice(self, n_samples: int, 
                            utt_frames: int,
                            min_pad: int, 
@@ -105,24 +107,7 @@ class EmbedV2():
         """
         wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
         frames = audio_preprocessing_old.wav_to_mel_spectrogram(wav = wav)
-        
-
-
-
-        sliced_frames = [frames[mel_slice] for mel_slice in mel_slices]
-        max_length = 160  # or however you determine the desired frame length
-        feature_dim = sliced_frames[0].shape[1]
-
-        batch_of_frames = np.zeros((len(sliced_frames), max_length, feature_dim), dtype=frames.dtype)
-
-        for i, sliced in enumerate(sliced_frames):
-            length = sliced.shape[0]
-            # Assign only up to the length of the sliced array
-            batch_of_frames[i, :length, :] = sliced
-
-
-
-
+        batch_of_frames = np.array([frames[mel_slice] for mel_slice in mel_slices])
 
         partial_embeddings = self.embed_frames_batch(frames_batch= batch_of_frames)
         
