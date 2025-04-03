@@ -219,7 +219,6 @@ def debug_audio_info(wav: np.ndarray, sr: int, title: str = "Audio Signal"):
     print(f"Number of samples: {len(wav)}")
     print(f"Duration: {len(wav) / sr:.2f} seconds")
 
-    # --- Plotting ---
     plt.figure(figsize=(15, 10))
 
     # 1. Waveform
@@ -230,7 +229,7 @@ def debug_audio_info(wav: np.ndarray, sr: int, title: str = "Audio Signal"):
     plt.ylabel("Amplitude")
 
     # 2. Power Spectrum (Magnitude Spectrum of FFT)
-    n_fft = 2048  # You can adjust this
+    n_fft = 2048  
     D = np.abs(librosa.stft(wav[:n_fft], n_fft=n_fft, hop_length=n_fft // 4))
     frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
     plt.subplot(3, 2, 2)
@@ -248,9 +247,9 @@ def debug_audio_info(wav: np.ndarray, sr: int, title: str = "Audio Signal"):
     plt.colorbar(format='%+2.0f dB')
     plt.title(f'{title} - Spectrogram')
 
-    # 4. Mel Spectrogram (if your processing uses it)
+    # 4. Mel Spectrogram 
     plt.subplot(3, 2, 4)
-    n_mels = 128 # You can adjust this
+    n_mels = 40
     mel_spectrogram = librosa.feature.melspectrogram(y=wav, sr=sr, n_fft=2048, hop_length=512, n_mels=n_mels)
     mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
     librosa.display.specshow(mel_spectrogram_db, sr=sr, x_axis='time', y_axis='mel')
@@ -265,11 +264,13 @@ def debug_audio_info(wav: np.ndarray, sr: int, title: str = "Audio Signal"):
 # =============================================================================
 
 if __name__ == "__main__":
-    # Example usage: Specify an audio file path for debugging
+    # Specify an audio file path for debugging
     test_audio_file = "datasets/LibriSpeech/train-clean-100/19/198/19-198-0000.flac"
     original_waveform, original_sr = librosa.load(test_audio_file, sr=None, mono=True)
+    
     # Original Audio (Unprocessed)
     debug_audio_info(original_waveform, original_sr, title="Original Audio")
-    # To enable debugging, set debug=True in the preprocess_audio call
+    
+    # To enable debugging, set debug=True 
     processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr, debug=True)
     print(f"Processed mel spectrogram shape: {processed_frames.shape}")
