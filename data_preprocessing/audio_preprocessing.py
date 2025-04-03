@@ -268,9 +268,8 @@ if __name__ == "__main__":
     # Example usage: Specify an audio file path for debugging
     test_audio_file = "datasets/LibriSpeech/train-clean-100/19/198/19-198-0000.flac"
     original_waveform, original_sr = librosa.load(test_audio_file, sr=None, mono=True)
-    # To enable debugging, set debug=True in the preprocess_audio call
-    processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr, debug=False)
-    print(f"Processed mel spectrogram shape: {processed_frames.shape}")
-
     # Original Audio (Unprocessed)
     debug_audio_info(original_waveform, original_sr, title="Original Audio")
+    # To enable debugging, set debug=True in the preprocess_audio call
+    processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr, debug=True)
+    print(f"Processed mel spectrogram shape: {processed_frames.shape}")
