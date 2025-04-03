@@ -84,6 +84,9 @@ def trim_long_silences(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -
     Returns:
         np.ndarray: The audio waveform with long silences trimmed.
     """
+    # Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning), Copyright (c) 2019
+    # The following code is licensed under the MIT License
+    
     samples_per_window = int((VAD_WINDOW_LENGTH * sample_rate) / 1000)
     # Ensure the waveform length is a multiple of the window size for VAD
     wav = wav[:len(wav) - (len(wav) % samples_per_window)]
