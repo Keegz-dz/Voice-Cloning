@@ -2,13 +2,13 @@ import numpy as np
 from temp import *
 from typing import Union, List
 import torch
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from data_preprocessing import audio_preprocessing_new
 
 class Embed():
     def __init__(self, encoder):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.encoder = encoder
-        self.encoder.to(device)
+        self.encoder.to(self.device)
 
     def embed_frames_batch(self, frames_batch):
         """
@@ -18,7 +18,7 @@ class Embed():
         (batch_size, n_frames, n_channels)
         :return: the embeddings as a numpy array of float32 of shape (batch_size, model_embedding_size)
         """
-        frames = torch.from_numpy(frames_batch).to(device)
+        frames = torch.from_numpy(frames_batch).to(self.device)
         embed = self.encoder.forward(frames)
         return embed
 
@@ -96,7 +96,7 @@ class Embed():
         """
         # Process the entire utterance if not using partials
         if not using_partials:
-            frames = audio.wav_to_mel_spectrogram(wav)
+            frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav)
             embed = self.embed_frames_batch(frames[None, ...])[0]
             if return_partials:
                 return embed, None, None
@@ -109,7 +109,7 @@ class Embed():
             wav = np.pad(wav, (0, max_wave_length - len(wav)), "constant")
 
         # Split the utterance into partials
-        frames = audio.wav_to_mel_spectrogram(wav)
+        frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav)
         frames_batch = np.array([frames[s] for s in mel_slices])
         partial_embeds = self.embed_frames_batch(frames_batch)
 

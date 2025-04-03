@@ -4,14 +4,14 @@ from typing import Union, List
 import torch
 import math 
 from temp import audio
-from data_preprocessing import audio_preprocessing_old
+from data_preprocessing import audio_preprocessing_new
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class EmbedV2():
     def __init__(self, encoder):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.encoder = encoder
-        self.encoder.to(device)
+        self.encoder.to(self.device)
 
     def embed_frames_batch(self, frames_batch):
         """
@@ -24,7 +24,7 @@ class EmbedV2():
         Returns:
           the embeddings as a numpy array of float32 of shape (batch_size, model_embedding_size)
         """
-        frames = torch.from_numpy(frames_batch).to(device)
+        frames = torch.from_numpy(frames_batch).to(self.device)
         embed = self.encoder.forward(frames)
         return embed
 
@@ -48,12 +48,14 @@ class EmbedV2():
         """
         
         # Audio processing assumptions
-        hop_length = 160  # 10ms frame shift at 16kHz
-        win_length = 400  # 25ms window
+        hop_length = 10  # 10ms frame shift at 16kHz
+        win_length = 25  # 25ms window
         
         # Calculate mel parameters from audio assumptions
         n_frames = (n_samples - win_length) // hop_length + 1
-        
+        pad = (utt_frames - (n_frames % utt_frames)) % utt_frames
+        n_frames += pad
+
         # Validate input dimensions
         utt_frames = min(utt_frames, n_frames)
         if utt_frames < 1:
@@ -65,7 +67,7 @@ class EmbedV2():
         
         # Generate mel slices with overlap and padding control
         start = 0
-        while start < n_frames:
+        while start + utt_frames <= n_frames:
             end = start + utt_frames
             if end > n_frames:
                 # Handle last slice with padding consideration
@@ -106,7 +108,7 @@ class EmbedV2():
             the embedding as a numpy array of float32 of shape (model_embedding_size,)
         """
         wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
-        frames = audio_preprocessing_old.wav_to_mel_spectrogram(wav = wav)
+        frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav = wav)
         batch_of_frames = np.array([frames[mel_slice] for mel_slice in mel_slices])
 
         partial_embeddings = self.embed_frames_batch(frames_batch= batch_of_frames)
