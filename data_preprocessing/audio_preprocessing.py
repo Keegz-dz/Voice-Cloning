@@ -151,29 +151,34 @@ def wav_to_mel_spectrogram(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RAT
 # Main Preprocessing Function
 # =============================================================================
 
-def preprocess_audio(waveform: torch.Tensor, orig_sr: int) -> np.ndarray:
+def preprocess_audio(waveform: torch.Tensor, orig_sr: int, debug: bool = False) -> np.ndarray:
     """
     Applies a series of audio preprocessing steps: resampling, volume normalization,
-    silence trimming using VAD, and conversion to a mel spectrogram.
+    silence trimming using VAD. Optionally includes debugging information.
 
     Args:
         waveform (torch.Tensor): Input audio as a PyTorch Tensor.
         orig_sr (int): Original sampling rate of the audio.
+        debug (bool, optional): If True, prints debugging information and saves
+                                 intermediate audio files. Defaults to False.
 
     Returns:
-        np.ndarray: Processed mel spectrogram as a NumPy array (frames x frequency bins).
+        np.ndarray: Processed audio waveform as a NumPy array.
     """
     resampled_wav = resample_audio(waveform.detach().cpu().numpy(), orig_sr, TARGET_SAMPLE_RATE)      # Convert the PyTorch tensor to a NumPy array and resample the audio
-    # debug_audio_info(resampled_wav, TARGET_SAMPLE_RATE, title="Resampled Audio")
+    if debug:
+        debug_audio_info(resampled_wav, TARGET_SAMPLE_RATE, title="Resampled Audio")
+        save_audio(resampled_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "resampled.wav"))
 
     normalised_wav = normalize_volume(resampled_wav, AUDIO_NORM_TARGET_DBFS)
-    # debug_audio_info(normalised_wav, TARGET_SAMPLE_RATE, title="Normalised Audio")
+    if debug:
+        debug_audio_info(normalised_wav, TARGET_SAMPLE_RATE, title="Normalised Audio")
+        save_audio(normalised_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "normalised.wav"))
 
     trimmed_wav = trim_long_silences(normalised_wav, TARGET_SAMPLE_RATE)
-    # debug_audio_info(trimmed_wav, TARGET_SAMPLE_RATE, title="Trimmed Audio")
-
-    # Convert the processed waveform to mel spectrogram frames
-    # frames = wav_to_mel_spectrogram(trimmed_wav, TARGET_SAMPLE_RATE)
+    if debug:
+        debug_audio_info(trimmed_wav, TARGET_SAMPLE_RATE, title="Trimmed Audio")
+        save_audio(trimmed_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "trimmed.wav"))
 
     return trimmed_wav
 
@@ -263,8 +268,9 @@ if __name__ == "__main__":
     # Example usage: Specify an audio file path for debugging
     test_audio_file = "datasets/LibriSpeech/train-clean-100/19/198/19-198-0000.flac"
     original_waveform, original_sr = librosa.load(test_audio_file, sr=None, mono=True)
-    processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr)
+    # To enable debugging, set debug=True in the preprocess_audio call
+    processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr, debug=False)
     print(f"Processed mel spectrogram shape: {processed_frames.shape}")
 
-    # Original Audio (Unprocessed) 
+    # Original Audio (Unprocessed)
     debug_audio_info(original_waveform, original_sr, title="Original Audio")
