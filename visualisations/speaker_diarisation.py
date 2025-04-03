@@ -23,7 +23,6 @@ from typing import Union, List
 from visualisations import *
 from embed import Embed
 from data_preprocessing import audio_preprocessing_new
-from embed_v2 import EmbedV2
 
 # waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
 waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
