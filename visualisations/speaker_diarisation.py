@@ -47,7 +47,7 @@ encoder.eval()
 
 print("Running the continuous embedding on CPU, this might take a while...")
 
-embedder = EmbedV2(encoder)
+embedder = Embed(encoder)
 
 # Compute a continuous embedding for the full interview.
 _, cont_embeds, wav_splits = embedder.embed_utterance(wav, return_partials=True)
