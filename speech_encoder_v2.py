@@ -20,7 +20,7 @@ class SpeechEncoderV2(nn.Module):
         )
         self.linear = nn.Linear(in_features=mel_n_channels, out_features=model_embedding_size)
         self.relu = torch.nn.ReLU().to(device)
-
+        
         self.similarity_weight = nn.Parameter(torch.tensor([10.], device=loss_device))
         self.similarity_bias = nn.Parameter(torch.tensor([-5.], device=loss_device))
 
@@ -87,6 +87,9 @@ class SpeechEncoderV2(nn.Module):
         
         sim_matrix = sim_matrix * self.similarity_weight + self.similarity_bias
         return sim_matrix
+    
+    # TODO: Improvement 2: Find a better way to compute the similarity matrix. The current one is not very efficient.
+    #                      Find or improve the loss function according to the 2025 standards.
         
     def loss(self, embeds):
         """
