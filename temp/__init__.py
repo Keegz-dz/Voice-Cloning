@@ -2,3 +2,9 @@ from temp.audio import *
 from temp.demo_utils import *
 from temp.preprocess import *
 from temp.config import *
+from temp._cmudict import *
+from temp.cleaners import *
+from temp.text import *
+from temp.symbols import *
+from temp.numbers import *
+from temp.plot import *
