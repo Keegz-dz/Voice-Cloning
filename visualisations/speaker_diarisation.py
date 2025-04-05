@@ -22,11 +22,11 @@ import numpy as np
 from typing import Union, List
 from visualisations import *
 from embed import Embed
-from data_preprocessing import audio_preprocessing_new
+from data_preprocessing import audio_preprocessing
 
 # waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
 waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
-wav = audio_preprocessing_new.preprocess_audio(waveform, sample_rate)
+wav = audio_preprocessing.preprocess_audio(waveform, sample_rate)
 
 # Cut reference segments from the interview. Each segment (given in seconds) is assumed to contain a single speaker.
 segments = [[0, 5.5], [6.5, 12], [17, 25]]

@@ -4,7 +4,7 @@ from typing import Union, List
 import torch
 import math 
 from temp import audio
-from data_preprocessing import audio_preprocessing_new
+from data_preprocessing import audio_preprocessing
 
 
 class EmbedV2():
@@ -108,7 +108,7 @@ class EmbedV2():
             the embedding as a numpy array of float32 of shape (model_embedding_size,)
         """
         wav_slices, mel_slices = self.calculate_partial_slice(n_samples= len(wav), utt_frames= 160, min_pad= 0.75, overlap= 0.5)
-        frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav = wav)
+        frames = audio_preprocessing.wav_to_mel_spectrogram(wav = wav)
         batch_of_frames = np.array([frames[mel_slice] for mel_slice in mel_slices])
 
         partial_embeddings = self.embed_frames_batch(frames_batch= batch_of_frames)

@@ -2,7 +2,7 @@ import numpy as np
 from temp import *
 from typing import Union, List
 import torch
-from data_preprocessing import audio_preprocessing_new
+from data_preprocessing import audio_preprocessing
 
 class Embed():
     def __init__(self, encoder):
@@ -96,7 +96,7 @@ class Embed():
         """
         # Process the entire utterance if not using partials
         if not using_partials:
-            frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav)
+            frames = audio_preprocessing.wav_to_mel_spectrogram(wav)
             embed = self.embed_frames_batch(frames[None, ...])[0]
             if return_partials:
                 return embed, None, None
@@ -109,7 +109,7 @@ class Embed():
             wav = np.pad(wav, (0, max_wave_length - len(wav)), "constant")
 
         # Split the utterance into partials
-        frames = audio_preprocessing_new.wav_to_mel_spectrogram(wav)
+        frames = audio_preprocessing.wav_to_mel_spectrogram(wav)
         frames_batch = np.array([frames[s] for s in mel_slices])
         partial_embeds = self.embed_frames_batch(frames_batch)
 

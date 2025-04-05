@@ -8,7 +8,7 @@ import numpy as np
 import librosa
 from speech_encoder_v2 import SpeechEncoderV2
 from embed import Embed
-from temp import text_to_sequence
+from utils import text_to_sequence
 import utils.audio_synthesizer as audio_synthesizer
 
 class Synthesizer:
