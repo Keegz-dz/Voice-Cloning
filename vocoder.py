@@ -1,5 +1,5 @@
 from fatchord_version import WaveRNN
-import hparams as hp
+import params as p
 import torch
 
 class Vocoder():
@@ -12,18 +12,18 @@ class Vocoder():
             print("Building Wave-RNN")
 
         self.model = WaveRNN(
-            rnn_dims=hp.voc_rnn_dims,
-            fc_dims=hp.voc_fc_dims,
-            bits=hp.bits,
-            pad=hp.voc_pad,
-            upsample_factors=hp.voc_upsample_factors,
-            feat_dims=hp.num_mels,
-            compute_dims=hp.voc_compute_dims,
-            res_out_dims=hp.voc_res_out_dims,
-            res_blocks=hp.voc_res_blocks,
-            hop_length=hp.hop_length,
-            sample_rate=hp.sample_rate,
-            mode=hp.voc_mode
+            rnn_dims=p.voc_rnn_dims,
+            fc_dims=p.voc_fc_dims,
+            bits=p.bits,
+            pad=p.voc_pad,
+            upsample_factors=p.voc_upsample_factors,
+            feat_dims=p.num_mels,
+            compute_dims=p.voc_compute_dims,
+            res_out_dims=p.voc_res_out_dims,
+            res_blocks=p.voc_res_blocks,
+            hop_length=p.hop_length,
+            sample_rate=p.sample_rate,
+            mode=p.voc_mode
         )
 
         if torch.cuda.is_available():
@@ -59,7 +59,7 @@ class Vocoder():
             raise Exception("Please load Wave-RNN in memory before using it")
         
         if normalize:
-            mel = mel / hp.mel_max_abs_value
+            mel = mel / p.mel_max_abs_value
         mel = torch.from_numpy(mel[None, ...])
-        wav = self.model.generate(mel, batched, target, overlap, hp.mu_law, progress_callback)
+        wav = self.model.generate(mel, batched, target, overlap, p.mu_law, progress_callback)
         return wav

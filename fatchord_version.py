@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from distribution import sample_from_discretized_mix_logistic
-from display import *
-from audio_vocoder import *
-
+from utils.distribution import sample_from_discretized_mix_logistic
+from utils.display import *
+from utils.audio_vocoder import *
+import params as p
 
 class ResBlock(nn.Module):
     def __init__(self, dims):
@@ -244,7 +244,7 @@ class WaveRNN(nn.Module):
 
         if mu_law:
             output = decode_mu_law(output, self.n_classes, False)
-        if hp.apply_preemphasis:
+        if p.apply_preemphasis:
             output = de_emphasis(output)
 
         # Fade-out at the end to avoid signal cutting out suddenly

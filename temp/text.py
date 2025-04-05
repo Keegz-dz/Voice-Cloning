@@ -1,4 +1,4 @@
-from symbols import symbols
+from utils.symbols import symbols
 from . import cleaners
 import re
 
