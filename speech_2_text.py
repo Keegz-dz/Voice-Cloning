@@ -36,7 +36,8 @@ class SpeechTranslationPipeline:
             input_features = self.processor(
                 audio, 
                 sampling_rate=p.sample_rate, 
-                return_tensors="pt"
+                return_tensors="pt",
+                language="en"
             ).input_features
 
             # Generate transcription
@@ -59,7 +60,7 @@ class SpeechTranslationPipeline:
             str: Translated text
         """
         try:
-            inputs = self.tokenizer([text], return_tensors="pt", padding=True, truncation=True)
+            inputs = self.tokenizer([text], return_tensors="pt", padding=True, truncation=True, return_attention_mask=True)
             translated_ids = self.translator.generate(**inputs)
             translated_text = self.tokenizer.batch_decode(
                 translated_ids, 

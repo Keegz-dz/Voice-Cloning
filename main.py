@@ -1,5 +1,6 @@
 import torch
 import librosa
+import warnings
 import numpy as np
 from pathlib import Path
 from typing import Union, List
@@ -15,11 +16,9 @@ from data_preprocessing import audio_preprocessing
 from speech_2_text import SpeechTranslationPipeline
 
 class Main():
-    def __init__(self, audio, original_encoder = False):
-        try:
-            self.wav = audio_preprocessing.preprocess_audio(audio, p.sample_rate)
-        except Exception as e:
-            print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
+    def __init__(self, original_encoder = False):
+        
+        warnings.filterwarnings("ignore")
 
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,12 +34,6 @@ class Main():
             self.embedder = Embed(self.encoder)
         except Exception as e:
             print(f"\nError in initializing embedder: {e}\nPlease read the documentations incase of errors.")
-
-        try:
-            stt_model = SpeechTranslationPipeline()
-            self.text = stt_model.transcribe_audio(self.wav).split("\n")
-        except Exception as e:
-            print(f"\nError in speech-to-text: {e}\nPlease check the audio file or the STT model.")
 
     def __init__encoder(self, original_encoder, encoder_path: str = "models\speech_encoder_transformer\encoder(0.096).pt"):
         '''Initialize the encoder model'''
@@ -77,9 +70,21 @@ class Main():
             print(f"\nError in loading vocoder: {e}\nPlease check the vocoder model path.")
         return vocoder
 
-    def clone_audio(self, use_vocoder: bool = False):
+    def clone_audio(self, audio, use_vocoder: bool = False):
         print("\nModel Initializations Completed.")  
         print("\nStarting audio generation...")
+        
+        try:
+            self.wav = audio_preprocessing.preprocess_audio(audio, p.sample_rate)
+        except Exception as e:
+            print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
+
+        try:
+            stt_model = SpeechTranslationPipeline()
+            self.text = stt_model.transcribe_audio(self.wav).split("\n")
+        except Exception as e:
+            print(f"\nError in speech-to-text: {e}\nPlease check the audio file or the STT model.")
+
         try:
             embedding, partial_embeds, _ = self.embedder.embed_utterance(self.wav, return_partials=True)
             embeddings = [embedding] * len(self.text)
