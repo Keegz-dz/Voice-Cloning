@@ -1,6 +1,6 @@
 import torch
 import params
-from tacotron import Tacotron
+from utils.tacotron import Tacotron
 from utils.symbols import symbols
 from pathlib import Path
 from typing import Union, List
@@ -15,7 +15,7 @@ class Synthesizer:
     sample_rate = params.sample_rate
     params = params
 
-    def __init__(self, model_fpath: Path, embeddings, verbose=True):
+    def __init__(self, model_fpath: Path, verbose=True):
         """
         The model isn't instantiated and loaded in memory until needed or until load() is called.
 
@@ -25,7 +25,6 @@ class Synthesizer:
 
         self.model_fpath = model_fpath
         self.verbose = verbose
-        self.embeddings = embeddings
 
         # Check for GPU
         if torch.cuda.is_available():
@@ -69,7 +68,7 @@ class Synthesizer:
         if self.verbose:
             print("Loaded synthesizer \"%s\" trained to step %d" % (self.model_fpath.name, self._model.state_dict()["step"]))
 
-    def synthesize_spectrograms(self, texts: List[str], return_alignments=False):
+    def synthesize_spectrograms(self, texts: List[str], embeddings, return_alignments=False):
         """
         Synthesizes mel spectrograms from texts and speaker embeddings.
 
@@ -85,6 +84,8 @@ class Synthesizer:
         if not self.is_loaded():
             self.load()
 
+        self.embeddings = embeddings
+        
         # Preprocess text inputs
         inputs = [text_to_sequence(text.strip(), params.tts_cleaner_names) for text in texts]
         # utils = torch.hub.load('NVIDIA/DeepLearningExamples:torchhub', 'nvidia_tts_utils')
