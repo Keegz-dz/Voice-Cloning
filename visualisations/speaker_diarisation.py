@@ -11,7 +11,7 @@ sys.path.append('.')
 
 from data_preprocessing import *
 import sounddevice
-from speech_encoder_v2 import SpeechEncoderV2
+from speech_encoder_v3 import SpeechEncoderV2
 from params import *
 from utils import *
 from pathlib import Path
