@@ -10,8 +10,8 @@ from embed import Embed
 from vocoder import Vocoder
 from utils.tacotron import Tacotron
 from synthesizer import Synthesizer
-from speech_encoder import SpeechEncoder
-from speech_encoder_v2 import SpeechEncoderV2
+from archived.speech_encoder import SpeechEncoder
+from archived.speech_encoder_v2 import SpeechEncoderV2
 from temp.audio import preprocess_wav
 from speech_2_text import SpeechTranslationPipeline
 

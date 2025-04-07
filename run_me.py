@@ -1,9 +1,10 @@
 from main import Main
 import soundfile as sf
 import torchaudio
+import librosa
 
-audio_path = "D:\CODING\SpeechEncoder\data\LibriSpeech/train-clean-100/2764/36616/2764-36616-0000.flac"
-wav, sample_rate = torchaudio.load(audio_path)
+audio_path = '2764-36616-0000.flac'
+wav, sample_rate = librosa.load(audio_path,sr=160000)
 
 main = Main()
 wav = main.clone_audio(wav, use_vocoder=True)

@@ -10,7 +10,7 @@ import sys
 sys.path.append('.')
 
 import sounddevice
-from speech_encoder_v2 import SpeechEncoderV2
+from archived.speech_encoder_v2 import SpeechEncoderV2
 from params import *
 from utils import *
 from pathlib import Path
