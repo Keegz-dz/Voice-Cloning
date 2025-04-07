@@ -16,3 +16,4 @@ datasets/*
 __pycache__/*
 
 output.wav
+*.flac
