@@ -27,7 +27,7 @@ def main(audio_path, intended_text):
     # Generate speaker embeddings
     embedding, partial_embeds, _ = embedder.embed_utterance(wav, return_partials=True)
     # If multiple lines are provided, split into a list. Otherwise, wrap the text in a list.
-    text = intended_text.split("\n") if "\n" in intended_text else [intended_text]
+    text = intended_text.split("\n") 
     embeddings = [embedding] * len(text)
 
     # Synthesize spectrograms
