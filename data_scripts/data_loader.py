@@ -1,3 +1,7 @@
+"""This file includes code adapted from Resemblyzer (https://github.com/resemble-ai/Resemblyzer),
+Copyright (c) 2019 Resemble AI, licensed under the MIT License.
+"""
+
 import random
 import numpy as np
 from pathlib import Path
