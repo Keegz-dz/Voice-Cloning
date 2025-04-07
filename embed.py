@@ -1,5 +1,6 @@
-# Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning), Copyright (c) 2019
-# The following code is licensed under the MIT License
+"""Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning), Copyright (c) 2019
+The following code is licensed under the MIT License
+"""
 
 import numpy as np
 from temp import *
