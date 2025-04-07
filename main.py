@@ -12,7 +12,7 @@ from utils.tacotron import Tacotron
 from synthesizer import Synthesizer
 from speech_encoder import SpeechEncoder
 from speech_encoder_v2 import SpeechEncoderV2
-from data_preprocessing import audio_preprocessing
+from temp.audio import preprocess_wav
 from speech_2_text import SpeechTranslationPipeline
 
 class Main():
@@ -75,7 +75,7 @@ class Main():
         print("\nStarting audio generation...")
         
         try:
-            self.wav = audio_preprocessing.preprocess_audio(audio, p.sample_rate)
+            self.wav = preprocess_wav(audio, p.sample_rate)
         except Exception as e:
             print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
 
