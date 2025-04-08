@@ -2,6 +2,7 @@
 .DS_Store
 Icon
 .venv
+test
 
 # ipynb_checkpoints
 notebooks\.ipynb_checkpoints
