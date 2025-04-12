@@ -15,4 +15,4 @@ datasets/*
 # windows
 __pycache__/*
 
-output.wav
+*.wav

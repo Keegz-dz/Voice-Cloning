@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Union, List
 
 import params as p
+from temp.audio import preprocess_wav
 from embed import Embed
 from vocoder import Vocoder
 from utils.tacotron import Tacotron
@@ -35,7 +36,7 @@ class Main():
         except Exception as e:
             print(f"\nError in initializing embedder: {e}\nPlease read the documentations incase of errors.")
 
-    def __init__encoder(self, original_encoder, encoder_path: str = "models\speech_encoder_transformer\encoder(0.096).pt"):
+    def __init__encoder(self, original_encoder, encoder_path: str = "models\speech_encoder_transformer_updated\encoder_073500_loss_0.0724.pt"):
         '''Initialize the encoder model'''
         try:
 
@@ -75,7 +76,7 @@ class Main():
         print("\nStarting audio generation...")
         
         try:
-            self.wav = audio_preprocessing.preprocess_audio(audio, p.sample_rate)
+            self.wav = preprocess_wav(audio, p.sample_rate)
         except Exception as e:
             print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
 

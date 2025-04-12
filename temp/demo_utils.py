@@ -2,7 +2,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.animation import FuncAnimation
 from matplotlib import cm
 from time import sleep, perf_counter as timer
-# from umap import UMAP
+from umap import UMAP
 from sys import stderr
 import matplotlib.pyplot as plt
 import numpy as np
