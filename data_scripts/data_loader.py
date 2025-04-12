@@ -1,11 +1,3 @@
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
-# Unless required by applicable law or agreed to in writing, software distributed under the License 
-# is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express 
-# or implied. See the License for the specific language governing permissions and limitations 
-# under the License.
-
 import random
 import numpy as np
 from pathlib import Path
@@ -27,12 +19,6 @@ class RandomCycler:
         self.next_items = []
     
     def sample(self, count: int) -> List:
-        """
-        Returns a list of items sampled in random order.
-        
-        :param count: Number of items to sample.
-        :return: List of sampled items.
-        """
         out = []
         while count > 0:
             if count >= len(self.all_items):
@@ -52,7 +38,7 @@ class RandomCycler:
 
 class Utterance:
     """
-    Represents an utterance with paths to its frame data and audio.
+    Represents an utterance with paths to its frame data and original audio.
     """
     def __init__(self, frames_fpath: Path, wave_fpath: str):
         self.frames_fpath = frames_fpath
@@ -60,14 +46,13 @@ class Utterance:
         
     def get_frames(self) -> np.ndarray:
         """Loads and returns the frame data from disk."""
+        # Optionally, use memory-mapping (np.load(..., mmap_mode='r')) if needed.
         return np.load(self.frames_fpath)
 
     def random_partial(self, n_frames: int):
         """
         Crops the frame data into a partial utterance of n_frames.
-        
-        :param n_frames: Number of frames for the partial utterance.
-        :return: Tuple (partial_frames, (start, end)) where partial_frames is the cropped array.
+        Returns a tuple: (partial_frames, (start, end))
         """
         frames = self.get_frames()
         if frames.shape[0] == n_frames:
@@ -90,10 +75,12 @@ class Speaker:
     def _load_utterances(self):
         """
         Loads the speaker's utterances based on the _sources.txt file.
+        The _sources.txt file should contain lines formatted as: 
+            frames_filename,original_audio_filename
         """
         with self.root.joinpath("_sources.txt").open("r") as sources_file:
             sources = [line.strip().split(",") for line in sources_file if line.strip()]
-        # Map frames file to wave file path
+        # Create a mapping of frames file to original wave file.
         sources = {frames_fname: wave_fpath for frames_fname, wave_fpath in sources}
         self.utterances = [Utterance(self.root.joinpath(f), w) for f, w in sources.items()]
         self.utterance_cycler = RandomCycler(self.utterances)
@@ -101,10 +88,7 @@ class Speaker:
     def random_partial(self, count: int, n_frames: int):
         """
         Samples a batch of partial utterances from the speaker's utterances.
-        
-        :param count: Number of partial utterances to sample.
-        :param n_frames: Number of frames per partial utterance.
-        :return: List of tuples (utterance, partial_frames, (start, end)).
+        Returns a list of tuples: (utterance, partial_frames, (start, end))
         """
         if self.utterances is None:
             self._load_utterances()
@@ -113,29 +97,27 @@ class Speaker:
 
 class SpeakerBatch:
     """
-    Aggregates partial utterances from a list of speakers into a batch.
+    Aggregates partial utterances from a list of speakers into a single batch.
+    The resulting data is a NumPy array of shape (n_speakers * utterances_per_speaker, n_frames, mel_n).
     """
     def __init__(self, speakers: List[Speaker], utterances_per_speaker: int, n_frames: int):
         self.speakers = speakers
         # Sample partial utterances from each speaker.
         self.partials = {s: s.random_partial(utterances_per_speaker, n_frames) for s in speakers}
-        # Combine the partial frames into a single NumPy array for model input.
+        # Flatten the list of partials into a single NumPy array.
         self.data = np.array([frames for s in speakers for _, frames, _ in self.partials[s]])
 
 class SpeakerVerificationDataset(Dataset):
     """
     Dataset that provides a continuous stream of speakers.
-    
-    Input: A directory containing speaker subdirectories.
-    Each speaker subdirectory must include a "_sources.txt" file listing utterance files.
-    
-    Output: Each dataset item is a Speaker instance.
+    Expects a directory containing speaker subdirectories.
+    Each speaker subdirectory must include a "_sources.txt" file listing the processed utterance files.
     """
     def __init__(self, datasets_root: Path):
         self.root = datasets_root
         speaker_dirs = [f for f in self.root.glob("*") if f.is_dir()]
         if not speaker_dirs:
-            raise Exception("No speakers found. Ensure the directory contains speaker folders.")
+            raise Exception("No speakers found. Ensure the directory contains speaker folders with _sources.txt.")
         self.speakers = [Speaker(speaker_dir) for speaker_dir in speaker_dirs]
         self.speaker_cycler = RandomCycler(self.speakers)
 
@@ -159,9 +141,7 @@ class SpeakerVerificationDataset(Dataset):
 class SpeakerVerificationDataLoader(DataLoader):
     """
     DataLoader that creates batches of speakers and aggregates their partial utterances.
-    
-    Input: A SpeakerVerificationDataset.
-    Output: A SpeakerBatch object containing a NumPy array of partial utterance frames.
+    Returns a SpeakerBatch object as its collated output.
     """
     def __init__(self, dataset, speakers_per_batch: int, utterances_per_speaker: int, sampler=None, 
                  batch_sampler=None, num_workers=0, pin_memory=False, timeout=0, 
@@ -182,7 +162,4 @@ class SpeakerVerificationDataLoader(DataLoader):
         )
 
     def collate(self, speakers: List[Speaker]) -> SpeakerBatch:
-        """
-        Collates a list of speakers into a single SpeakerBatch.
-        """
         return SpeakerBatch(speakers, self.utterances_per_speaker, partials_n_frames)

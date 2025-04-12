@@ -6,8 +6,6 @@ import struct
 from scipy.ndimage import binary_dilation
 import os
 import soundfile as sf
-import matplotlib.pyplot as plt
-import librosa.display
 
 # =============================================================================
 # Constants
@@ -49,7 +47,7 @@ def resample_audio(waveform: np.ndarray, orig_sr: int, target_sr: int = TARGET_S
         waveform = waveform[0]
     if orig_sr != target_sr:
         waveform = librosa.resample(waveform, orig_sr=orig_sr, target_sr=target_sr)
-
+        
     return waveform
 
 
@@ -68,7 +66,7 @@ def normalize_volume(wav: np.ndarray, target_dBFS: float = AUDIO_NORM_TARGET_DBF
     wave_dBFS = 20 * np.log10(rms / INT16_MAX + 1e-6)
     dBFS_change = target_dBFS - wave_dBFS
     factor = 10 ** (dBFS_change / 20)           # Calculate the scaling factor to apply to the waveform
-
+    
     return wav * factor
 
 
@@ -84,9 +82,6 @@ def trim_long_silences(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -
     Returns:
         np.ndarray: The audio waveform with long silences trimmed.
     """
-    # Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning), Copyright (c) 2019
-    # The following code is licensed under the MIT License
-    
     samples_per_window = int((VAD_WINDOW_LENGTH * sample_rate) / 1000)
     # Ensure the waveform length is a multiple of the window size for VAD
     wav = wav[:len(wav) - (len(wav) % samples_per_window)]
@@ -119,7 +114,7 @@ def trim_long_silences(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -
             audio_mask = np.concatenate([audio_mask, np.zeros(pad_length, dtype=bool)])
         else:
             audio_mask = audio_mask[:len(wav)]
-
+            
     return wav[audio_mask]
 
 
@@ -145,7 +140,7 @@ def wav_to_mel_spectrogram(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RAT
         hop_length=hop_length,
         n_mels=MEL_N_CHANNELS
     )
-
+    
     # Transpose so that time is the first dimension (frames x frequency bins)
     return mel_spec.astype(np.float32).T
 
@@ -154,36 +149,25 @@ def wav_to_mel_spectrogram(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RAT
 # Main Preprocessing Function
 # =============================================================================
 
-def preprocess_audio(waveform: torch.Tensor, orig_sr: int, debug: bool = False) -> np.ndarray:
+def preprocess_audio(waveform: torch.Tensor, orig_sr: int) -> np.ndarray:
     """
     Applies a series of audio preprocessing steps: resampling, volume normalization,
-    silence trimming using VAD. Optionally includes debugging information.
+    silence trimming using VAD, and conversion to a mel spectrogram.
 
     Args:
         waveform (torch.Tensor): Input audio as a PyTorch Tensor.
         orig_sr (int): Original sampling rate of the audio.
-        debug (bool, optional): If True, prints debugging information and saves
-                                 intermediate audio files. Defaults to False.
 
     Returns:
-        np.ndarray: Processed audio waveform as a NumPy array.
+        np.ndarray: Processed mel spectrogram as a NumPy array (frames x frequency bins).
     """
-    resampled_wav = resample_audio(waveform.detach().cpu().numpy(), orig_sr, TARGET_SAMPLE_RATE)      # Convert the PyTorch tensor to a NumPy array and resample the audio
-    if debug:
-        debug_audio_info(resampled_wav, TARGET_SAMPLE_RATE, title="Resampled Audio")
-        save_audio(resampled_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "resampled.wav"))
-
-    normalised_wav = normalize_volume(resampled_wav, AUDIO_NORM_TARGET_DBFS)
-    if debug:
-        debug_audio_info(normalised_wav, TARGET_SAMPLE_RATE, title="Normalised Audio")
-        save_audio(normalised_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "normalised.wav"))
-
-    trimmed_wav = trim_long_silences(normalised_wav, TARGET_SAMPLE_RATE)
-    if debug:
-        debug_audio_info(trimmed_wav, TARGET_SAMPLE_RATE, title="Trimmed Audio")
-        save_audio(trimmed_wav, TARGET_SAMPLE_RATE, os.path.join(TEST_OUTPUT_DIR, "trimmed.wav"))
-
-    return trimmed_wav
+    wav = resample_audio(waveform.detach().cpu().numpy(), orig_sr, TARGET_SAMPLE_RATE)      # Convert the PyTorch tensor to a NumPy array and resample the audio
+    wav = normalize_volume(wav, AUDIO_NORM_TARGET_DBFS)
+    wav = trim_long_silences(wav, TARGET_SAMPLE_RATE)
+    # Convert the processed waveform to mel spectrogram frames
+    frames = wav_to_mel_spectrogram(wav, TARGET_SAMPLE_RATE)
+    
+    return frames
 
 # =============================================================================
 # Utility and Debugging Functions
@@ -202,78 +186,34 @@ def save_audio(audio: np.ndarray, sample_rate: int, filename: str):
     sf.write(filename, audio, sample_rate)
     print(f"Saved audio to {filename}")
 
-def debug_audio_info(wav: np.ndarray, sr: int, title: str = "Audio Signal"):
+def debug_loader(audio_file: str):
     """
-    Prints detailed information about an audio waveform and displays relevant plots.
+    Debug function to load an audio file, preprocess it, and save intermediate results.
 
     Args:
-        wav (np.ndarray): The audio waveform as a NumPy array.
-        sr (int): The sampling rate of the audio.
-        title (str, optional): A title for the plots. Defaults to "Audio Signal".
+        audio_file (str): Path to the audio file to test.
     """
-    print(f"\n--- Debugging Information for: {title} ---")
-    print(f"Shape of the waveform: {wav.shape}")
-    print(f"Data type of the waveform: {wav.dtype}")
-    print(f"Sampling rate: {sr} Hz")
-    print(f"Minimum value: {np.min(wav)}")
-    print(f"Maximum value: {np.max(wav)}")
-    print(f"Mean value: {np.mean(wav)}")
-    print(f"Standard deviation: {np.std(wav)}")
-    print(f"Number of samples: {len(wav)}")
-    print(f"Duration: {len(wav) / sr:.2f} seconds")
-
-    plt.figure(figsize=(15, 10))
-
-    # 1. Waveform
-    plt.subplot(3, 2, 1)
-    librosa.display.waveshow(wav, sr=sr)
-    plt.title(f'{title} - Waveform')
-    plt.xlabel("Time (s)")
-    plt.ylabel("Amplitude")
-
-    # 2. Power Spectrum (Magnitude Spectrum of FFT)
-    n_fft = 2048  
-    D = np.abs(librosa.stft(wav[:n_fft], n_fft=n_fft, hop_length=n_fft // 4))
-    frequencies = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-    plt.subplot(3, 2, 2)
-    plt.plot(frequencies, D[:, 0]) # Plot the magnitude for the first frame
-    plt.title(f'{title} - Power Spectrum (First Frame)')
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Magnitude")
-    plt.xscale('log')
-    plt.tight_layout()
-
-    # 3. Spectrogram
-    plt.subplot(3, 2, 3)
-    D = librosa.amplitude_to_db(np.abs(librosa.stft(wav, hop_length=512)), ref=np.max)
-    librosa.display.specshow(D, sr=sr, x_axis='time', y_axis='log')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title(f'{title} - Spectrogram')
-
-    # 4. Mel Spectrogram 
-    plt.subplot(3, 2, 4)
-    n_mels = 40
-    mel_spectrogram = librosa.feature.melspectrogram(y=wav, sr=sr, n_fft=2048, hop_length=512, n_mels=n_mels)
-    mel_spectrogram_db = librosa.power_to_db(mel_spectrogram, ref=np.max)
-    librosa.display.specshow(mel_spectrogram_db, sr=sr, x_axis='time', y_axis='mel')
-    plt.colorbar(format='%+2.0f dB')
-    plt.title(f'{title} - Mel Spectrogram')
-    plt.tight_layout()
-
-    plt.show()
+    print(f"Loading audio file: {audio_file}")
+    waveform, orig_sr = librosa.load(audio_file, sr=None, mono=True)
+    print(f"Original waveform shape: {waveform.shape}, Sample rate: {orig_sr}")
+    try:
+        processed_frames = preprocess_audio(torch.tensor(waveform), orig_sr)
+        print(f"Processed mel spectrogram shape: {processed_frames.shape}")
+        original_filename = os.path.join(TEST_OUTPUT_DIR, "original.wav")
+        save_audio(waveform, orig_sr, original_filename)
+        processed_filename = os.path.join(TEST_OUTPUT_DIR, "processed.wav")
+        save_audio(trim_long_silences(normalize_volume(resample_audio(waveform, orig_sr)), TARGET_SAMPLE_RATE), TARGET_SAMPLE_RATE, processed_filename)
+        # Save the processed mel spectrogram frames for inspection
+        np.save(os.path.join(TEST_OUTPUT_DIR, "processed_frames.npy"), processed_frames)
+        print("Saved processed frames as numpy array.")
+    except Exception as e:
+        print(f"Error during preprocessing: {e}")
 
 # =============================================================================
 # Main Execution Block
 # =============================================================================
 
 if __name__ == "__main__":
-    # Specify an audio file path for debugging
+    # Example usage: Specify an audio file path for debugging
     test_audio_file = "datasets/LibriSpeech/train-clean-100/19/198/19-198-0000.flac"
-    original_waveform, original_sr = librosa.load(test_audio_file, sr=None, mono=True)
-    
-    # Original Audio (Unprocessed)
-    debug_audio_info(original_waveform, original_sr, title="Original Audio")
-    
-    # To enable debugging, set debug=True 
-    processed_frames = preprocess_audio(torch.tensor(original_waveform), original_sr, debug=True)
-    print(f"Processed mel spectrogram shape: {processed_frames.shape}")
+    debug_loader(test_audio_file)

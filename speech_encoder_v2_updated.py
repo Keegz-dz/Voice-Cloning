@@ -13,6 +13,7 @@ class SpeechEncoderV2(nn.Module):
         super(SpeechEncoderV2, self).__init__()
         self.loss_device = loss_device
         # Architecture
+        self.pos_encoder = nn.Parameter(torch.randn(1, 1, mel_n_channels))
         self.transformer = nn.TransformerEncoder(
             nn.TransformerEncoderLayer(d_model=mel_n_channels, nhead=8),
             num_layers=model_num_layers,
@@ -20,8 +21,6 @@ class SpeechEncoderV2(nn.Module):
         )
         self.linear = nn.Linear(in_features=mel_n_channels, out_features=model_embedding_size)
         self.relu = torch.nn.ReLU().to(device)
-        
-        # TODO: Improvement 1: Improve the initialization of the weights and biases
 
         self.similarity_weight = nn.Parameter(torch.tensor([10.], device=loss_device))
         self.similarity_bias = nn.Parameter(torch.tensor([-5.], device=loss_device))
@@ -47,10 +46,12 @@ class SpeechEncoderV2(nn.Module):
         batch_size, hidden_size). Will default to a tensor of zeros if None.
         :return: the embeddings as a tensor of shape (batch_size, embedding_size)
         """
+
+        utterances = utterances + self.pos_encoder[:, :, :utterances.size(1)]
         # Pass the input through the transformer layers and retrieve all outputs
         out = self.transformer(utterances.transpose(0, 1)).transpose(0, 1)
         # We take only the last output
-        embeds_raw = self.relu(self.linear(out[:, -1]))
+        embeds_raw = self.relu(self.linear(out.mean(dim=1)))
         
         # L2-normalize it
         embeds = embeds_raw / (torch.norm(embeds_raw, dim=1, keepdim=True) + 1e-5)        
@@ -89,9 +90,6 @@ class SpeechEncoderV2(nn.Module):
         
         sim_matrix = sim_matrix * self.similarity_weight + self.similarity_bias
         return sim_matrix
-    
-    # TODO: Improvement 2: Find a better way to compute the similarity matrix. The current one is not very efficient.
-    #                      Find or improve the loss function according to the 2025 standards.
         
     def loss(self, embeds):
         """
