@@ -12,7 +12,7 @@ from vocoder import Vocoder
 from utils.tacotron import Tacotron
 from synthesizer import Synthesizer
 from speech_encoder import SpeechEncoder
-from speech_encoder_v2 import SpeechEncoderV2
+from speech_encoder_v2_updated import SpeechEncoderV2
 from data_preprocessing import audio_preprocessing
 from speech_2_text import SpeechTranslationPipeline
 
