@@ -71,7 +71,7 @@ class Main():
             print(f"\nError in loading vocoder: {e}\nPlease check the vocoder model path.")
         return vocoder
 
-    def clone_audio(self, audio, use_vocoder: bool = False):
+    def clone_audio(self, audio, use_vocoder: bool = False, text = None):
         print("\nModel Initializations Completed.")  
         print("\nStarting audio generation...")
         
@@ -81,8 +81,11 @@ class Main():
             print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
 
         try:
-            stt_model = SpeechTranslationPipeline()
-            self.text = stt_model.transcribe_audio(self.wav).split("\n")
+            if text is not None:
+                self.text = text.split("\n")
+            else:
+                stt_model = SpeechTranslationPipeline()
+                self.text = stt_model.transcribe_audio(self.wav).split("\n")
         except Exception as e:
             print(f"\nError in speech-to-text: {e}\nPlease check the audio file or the STT model.")
 
