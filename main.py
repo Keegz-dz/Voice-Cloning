@@ -42,7 +42,7 @@ class Main():
 
             if original_encoder:
                 encoder = SpeechEncoder(self.device, self.loss_device)
-                checkpoints = torch.load("models\speech_encoder_lstm/encoder.pt")
+                checkpoints = torch.load("models/speech_encoder_lstm/encoder.pt")
                 encoder.load_state_dict(checkpoints['model_state'])
                 return encoder
 
