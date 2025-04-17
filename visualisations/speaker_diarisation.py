@@ -24,8 +24,8 @@ from visualisations import *
 from embed import Embed
 from data_preprocessing import audio_preprocessing
 
-# waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
-waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
+waveform, sample_rate = torchaudio.load("visualisations/demo_speaker_diarisation.mp3")      # MacOS
+# waveform, sample_rate = torchaudio.load("visualisations\demo_speaker_diarisation.mp3")    # Windows
 wav = audio_preprocessing.preprocess_audio(waveform, sample_rate)
 
 # Cut reference segments from the interview. Each segment (given in seconds) is assumed to contain a single speaker.
@@ -40,7 +40,13 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 loss_device = torch.device("cpu")
 
 encoder = SpeechEncoderV2(device,device)
-checkpoints = torch.load("models\speech_encoder_transformer\encoder(0.096).pt") 
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+checkpoints = torch.load(
+    "models/speech_encoder_transformer/encoder(0.096).pt",
+    map_location=device
+)
+
 encoder.load_state_dict(checkpoints['model_state'])
 encoder.eval()
 
