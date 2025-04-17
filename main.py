@@ -36,22 +36,31 @@ class Main():
         except Exception as e:
             print(f"\nError in initializing embedder: {e}\nPlease read the documentations incase of errors.")
 
-    def __init__encoder(self, original_encoder, encoder_path: str = "models/speech_encoder_transformer_updated/encoder_073500_loss_0.0724.pt"):
+    def __init__encoder(self, original_encoder, 
+                        encoder_path: str = "models/speech_encoder_transformer_updated/encoder_073500_loss_0.0724.pt"):
         '''Initialize the encoder model'''
         try:
-
             if original_encoder:
                 encoder = SpeechEncoder(self.device, self.loss_device)
-                checkpoints = torch.load("models/speech_encoder_lstm/encoder.pt")
+                checkpoints = torch.load(
+                    "models/speech_encoder_lstm/encoder.pt",
+                    map_location=self.device
+                )
                 encoder.load_state_dict(checkpoints['model_state'])
                 return encoder
 
             encoder = SpeechEncoderV2(self.device, self.device)
-            checkpoints = torch.load(encoder_path)
+            checkpoints = torch.load(
+                encoder_path,
+                map_location=self.device
+            )
             encoder.load_state_dict(checkpoints['model_state'])
+            print("Successfully loaded the speaker encoder model.")
+            return encoder
+
         except Exception as e:
             print(f"\nError in loading encoder: {e}\nPlease check the encoder model path.")
-        return encoder
+            return None
     
     def __init__synthesizer(self, synthesizer_path: Path = Path("models/synthesizer/synthesizer.pt")):
         '''Initialize the synthesizer model'''
