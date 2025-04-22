@@ -439,12 +439,59 @@ def process_audio(input_audio, sr):
     enhanced_audio, sr = enhance_audio_tensor(input_audio, sr)
     return enhanced_audio,sr
 
+def main(input_audio, sr, output_audio_path):
+    """
+    Enhanced audio processing pipeline with complete error handling
+    
+    Args:
+        input_audio: Input audio (file path, numpy array, or torch tensor)
+        sr: Sample rate (required if input is array/tensor)
+        output_audio_path: Path to save enhanced audio
+        
+    Returns:
+        Tuple of (enhanced_audio_tensor, sample_rate) if successful
+        None if processing fails
+    """
+    print(f"\n[MAIN] Starting audio processing pipeline")
+    print(f"  - Output will be saved to: {output_audio_path}")
+    
+    try:
+        # Stage 1: Input Conversion
+        if not torch.is_tensor(input_audio):
+            print("[STAGE 1] Converting input to tensor...")
+            input_audio, sr = process_audio_input(input_audio, sr)
+            print(f"  - Converted shape: {input_audio.shape}, SR: {sr}Hz")
+        else:
+            print("[STAGE 1] Input is already a tensor")
+            print(f"  - Input shape: {input_audio.shape}, SR: {sr}Hz")
+        
+        # Stage 2: Audio Enhancement
+        print("[STAGE 2] Enhancing audio...")
+        enhanced_audio, sr = enhance_audio_tensor(input_audio, sr)
+        print(f"  - Enhanced shape: {enhanced_audio.shape}, SR: {sr}Hz")
+        
+        # Stage 3: Saving
+        print("[STAGE 3] Saving enhanced audio...")
+        output_audio_path = r"enhanced_audio.wav"
+            # Check output directory exists
+        os.makedirs(os.path.dirname(output_audio_path), exist_ok=True)
+
+        torchaudio.save(output_audio_path,  enhanced_audio, sample_rate=sr)
+        
+        print("[SUCCESS] Pipeline completed successfully")
+        return enhanced_audio, sr
+        
+    except Exception as e:
+        print(f"\n[ERROR] Pipeline failed: {str(e)}")
+        print("Returning None to indicate failure")
+        return None
+    
 if __name__ == "__main__":
     import sys
     import os
     data_path = os.path.abspath(os.path.join(os.getcwd(), '.', 'data'))
     audio_folder=data_path+r"\audio"
-    input_audio_path = r'data\audio\harvard.wav'
+    input_audio_path = r'.\audio_1.mp3'
     try:
             # Load audio from other modules
             print("\n[STAGE 1] Loading audio...")

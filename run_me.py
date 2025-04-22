@@ -1,10 +1,15 @@
 from main import Main
 import soundfile as sf
 import librosa
+import os
+import sys
+from scripts import audio_enhancing
 
-audio_path = r"Male.mp3" 
-
+audio_path = r"audio_1.mp3" 
 wav, sample_rate = librosa.load(audio_path, sr = 16000)
+
+# audio_enhancing.main(wav, sample_rate,r"audio_1_enhanced.mp3")
+# wav, sample_rate = librosa.load("enhanced_audio.wav", sr = 16000)
 
 main = Main()
 # !Always give a text argument or else it will default to Whisper which might break the code on some windows devices.

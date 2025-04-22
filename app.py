@@ -10,7 +10,7 @@ import time
 import random
 import io
 import base64
-
+from scripts import audio_enhancing
 
 from main import Main
 
@@ -165,6 +165,7 @@ class VoiceCloningApp:
                     tmp_path = tmp.name
                 
                 orig_wav, sr = librosa.load(tmp_path, sr=SAMPLE_RATE)
+                # audio_enhancing.main(orig_wav, sr,r"\enhanced_audio.wav")
                 os.unlink(tmp_path)
                 
                 st.session_state.orig_wav = orig_wav
