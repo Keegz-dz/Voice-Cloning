@@ -10,8 +10,7 @@ import time
 import random
 import io
 import base64
-from scipy.stats import kurtosis, skew
-import scipy.signal as signal
+
 
 from main import Main
 
