@@ -8,13 +8,10 @@ import tempfile
 import os
 import time
 import random
-import threading
-from typing import Tuple, Optional, Dict, Any
 import io
 import base64
-from python_speech_features import mfcc
-from scipy.spatial.distance import euclidean
-from fastdtw import fastdtw
+from scipy.stats import kurtosis, skew
+import scipy.signal as signal
 
 from main import Main
 
@@ -336,169 +333,197 @@ class VoiceCloningApp:
 
     
     def _setup_output_tab(self) -> None:
-        """Setup the output and comparison tab."""
-        st.header("Output & Spectrogram Comparison")
-        
+        """Setup the output and analysis tab that showcases the strengths of the cloned voice."""
+
         if st.session_state.cloned_wav is None or not isinstance(st.session_state.cloned_wav, np.ndarray) or st.session_state.cloned_wav.size == 0:
-            st.info("Before you can proceed, please synthesize the speech in the cloned voice.")
+            st.info("Generate a cloned voice first in the 'Source Audio and Cloning' tab.")
             return
+
+        try:
+            # Create a selectbox selector for different views instead of tabs/radio buttons
+            view_option = st.selectbox(
+                "Select View:",
+                ["Cloned Voice", "Voice Characteristics"],
+                key="output_view_selector"
+            )
+
+            # Display content based on selection
+            if view_option == "Cloned Voice":
+                self._setup_cloned_voice_section()
+            elif view_option == "Voice Characteristics":
+                self._setup_voice_characteristics_profile()
+
+        except Exception as e:
+            st.error(f"Error in analysis tab: {str(e)}")
+            st.info("Try generating a new cloned voice or reset the application")
+
+    def _setup_cloned_voice_section(self) -> None:
+        """Setup the main cloned voice section with audio player and download options."""
+        st.text("")
+        st.text("")
+        st.markdown("### Synthesized Content")
+        st.text("")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if "cloned_wav" in st.session_state and isinstance(st.session_state.cloned_wav, np.ndarray) and st.session_state.cloned_wav.size > 0 and "sr" in st.session_state:
+                    try:
+                        # Convert numpy array to bytes
+                        byte_io = io.BytesIO()
+                        sf.write(byte_io, st.session_state.cloned_wav, st.session_state.sr, format="WAV")
+                        cloned_audio_bytes = byte_io.getvalue()
+                        def play_audio(audio_bytes):
+                            """Plays audio in Streamlit using base64 encoding."""
+                            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+                            audio_tag = f'<audio controls src="data:audio/wav;base64,{audio_base64}"></audio>'
+                            st.markdown(audio_tag, unsafe_allow_html=True)
+                        play_audio(cloned_audio_bytes)
+                    except Exception as e:
+                        st.error(f"Error playing cloned audio: {str(e)}")
+            else:
+                st.warning("No cloned audio data available.")
+                
+        # Add statistics about the generated audio
+        if st.session_state.cloned_wav is not None:
+            sr = st.session_state.sr
+            duration = len(st.session_state.cloned_wav) / sr
+            st.caption(f"{duration:.2f} seconds | {sr} Hz")
+            
+        # Display text used for synthesis
+        st.info(st.session_state.text_input if st.session_state.text_input else "No text provided")
+        
+
+    def _setup_voice_characteristics_profile(self) -> None:
+        """Display voice characteristics profile with metrics calculated from actual audio data."""
         
         try:
-            # Results section
-            col1, col2 = st.columns([2, 3])
+            st.markdown("### Voice Characteristics Profile")
+            st.markdown("""
+            The following analysis shows the key characteristics of your cloned voice based on advanced acoustic analysis.
+            """)
             
-            with col1:
-                st.subheader("Cloned Voice Output")
+            if hasattr(st.session_state, "cloned_wav") and st.session_state.cloned_wav is not None:
+                # Calculate actual metrics from the cloned audio data
+                from data_scripts.voice_metrics import calculate_voice_metrics
                 
-                # Check if the file exists
-                if os.path.exists("cloned.wav"):
-                    st.audio("cloned.wav", format="audio/wav")
+                with st.spinner("Analyzing voice characteristics..."):
+                    voice_metrics = calculate_voice_metrics(st.session_state.cloned_wav, st.session_state.sr)
                     
-                    # Create download button if file exists
-                    try:
-                        with open("cloned.wav", "rb") as f:
-                            st.download_button(
-                                "⬇️ Download Cloned Audio",
-                                f,
-                                "cloned_voice.wav",
-                                "audio/wav",
-                                use_container_width=True
-                            )
-                    except Exception as e:
-                        st.error(f"Error creating download button: {str(e)}")
-                else:
-                    # Generate file if it doesn't exist
-                    try:
-                        sf.write("cloned.wav", st.session_state.cloned_wav, st.session_state.sr)
-                        st.audio("cloned.wav", format="audio/wav")
+                    if voice_metrics is None:
+                        st.warning("Could not analyze voice characteristics from the audio data.")
+                        return
+                
+                
+                # Display the metrics in a radar chart
+                categories = list(voice_metrics.keys())
+                values = [voice_metrics[category] for category in categories]
+                
+                # Fill in the values for the radar chart
+                values = np.array(values)
+                angles = np.linspace(0, 2*np.pi, len(categories), endpoint=False).tolist()
+                values = np.concatenate((values, [values[0]]))  # Close the loop
+                angles = np.concatenate((angles, [angles[0]]))  # Close the loop
+                categories = np.concatenate((categories, [categories[0]]))  # Close the loop
+                
+                # Create radar chart with more compact size
+                fig, ax = plt.subplots(figsize=(7, 7), subplot_kw=dict(polar=True))
+                ax.fill(angles, values, color='#5066D2', alpha=0.25)
+                ax.plot(angles, values, 'o-', linewidth=2, color='#5066D2')
+                
+                ax.set_theta_offset(np.pi / 2)
+                ax.set_theta_direction(-1)
+                ax.set_thetagrids(np.degrees(angles[:-1]), categories[:-1], fontsize=12)
+                
+                ax.set_ylim(0, 100)
+                ax.set_yticks([20, 40, 60, 80, 100])
+                ax.set_yticklabels(['20', '40', '60', '80', 'Excellent'])
+                ax.grid(True, alpha=0.3)
+                
+                plt.tight_layout()
+                st.pyplot(fig)
+                
+                # Display voice characteristic interpretations in collapsible sections
+                st.markdown("### Characteristic Details")
+                
+                # Create a 2x2 grid for metrics explanations with collapsible sections
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    with st.expander(f"Timbre Richness: {voice_metrics['Timbre Richness']:.1f}/100", expanded=True):
+                        st.markdown("""
+                        - Refers to the voice's tonal quality and warmth
+                        - Higher values indicate richer harmonic structure
+                        - Rich overtones create a natural, warm vocal quality
+                        """)
                         
-                        with open("cloned.wav", "rb") as f:
-                            st.download_button(
-                                "⬇️ Download Cloned Audio",
-                                f,
-                                "cloned_voice.wav",
-                                "audio/wav",
-                                use_container_width=True
-                            )
-                    except Exception as e:
-                        st.error(f"Error creating audio file: {str(e)}")
+                        # Add explanation based on the actual score
+                        score = voice_metrics['Timbre Richness']
+                        if score >= 90:
+                            st.success("Excellent: This voice has a rich, full-bodied timbre with well-balanced harmonics.")
+                        elif score >= 75:
+                            st.info("Good: This voice has a pleasant timbre with a decent harmonic structure.")
+                        else:
+                            st.warning("Moderate: The voice timbre could benefit from more harmonic richness.")
                 
-                # Display text used for synthesis
-                st.subheader("Text Used")
-                st.info(st.session_state.text_input if st.session_state.text_input else "No text provided")
-            
-            with col2:
-                # Wave comparison
-                st.subheader("Waveform Comparison")
-                self._plot_waveform_comparison()
-            
-            # Spectrogram comparison
-            st.subheader("Spectrogram Comparison")
-            
-            with st.expander("Why Spectrograms Matter", expanded=False):
-                st.markdown(
-                    """
-                    A spectrogram shows how frequency content changes over time. 
-                    By comparing the original and cloned audio visually, you can see:
+                with col2:
+                    with st.expander(f"Pitch Stability: {voice_metrics['Pitch Stability']:.1f}/100", expanded=True):
+                        st.markdown("""
+                        - Measures how consistently the voice maintains intended pitch
+                        - Higher values show better pitch control with natural micro-variations
+                        - Important for creating natural-sounding speech melody
+                        """)
+                        
+                        # Add explanation based on the actual score
+                        score = voice_metrics['Pitch Stability']
+                        if score >= 90:
+                            st.success("Excellent: The voice shows very stable pitch with natural micro-variations.")
+                        elif score >= 75:
+                            st.info("Good: The voice has good pitch stability with appropriate variations.")
+                        else:
+                            st.warning("Moderate: The pitch control could be more consistent.")
                     
-                    - **Frequency patterns**: How closely the voice pitch matches
-                    - **Temporal dynamics**: Speech rhythm and timing similarities
-                    - **Harmonic structure**: Voice timbre and quality comparison
+                # Second row
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    with st.expander(f"Articulation: {voice_metrics['Articulation']:.1f}/100", expanded=True):
+                        st.markdown("""
+                        - Represents clarity of consonants and vowels
+                        - Higher values indicate clearer pronunciation
+                        - Well-defined phoneme boundaries create intelligible speech
+                        """)
+                        
+                        # Add explanation based on the actual score
+                        score = voice_metrics['Articulation']
+                        if score >= 90:
+                            st.success("Excellent: The speech is very clearly articulated with distinct consonants and vowels.")
+                        elif score >= 75:
+                            st.info("Good: The speech has good clarity with well-defined sounds.")
+                        else:
+                            st.warning("Moderate: Some phonemes could be more clearly articulated.")
                     
-                    The more similar these patterns appear, the better the voice cloning quality.
-                    """
-                )
-            
-            self._plot_spectrograms()
-            
-        except Exception as e:
-            st.error(f"Error setting up output tab: {str(e)}")
-            st.info("Try generating a new cloned voice or reset the application")
-    
-    def _plot_waveform_comparison(self) -> None:
-        """Plot waveform comparison between original and cloned audio."""
-        try:
-            orig = st.session_state.orig_wav
-            clone = st.session_state.cloned_wav
-            sr = st.session_state.sr
-            
-            if orig is None or clone is None or sr is None:
-                st.warning("Missing data for waveform comparison")
-                return
+                with col4:
+                    with st.expander(f"Speech Rhythm: {voice_metrics['Speech Rhythm']:.1f}/100", expanded=True):
+                        st.markdown("""
+                        - Measures the naturalness of pacing and pauses
+                        - Higher values indicate more natural rhythm patterns
+                        - Proper stress patterns create convincing human-like speech
+                        """)
+                        
+                        # Add explanation based on the actual score
+                        score = voice_metrics['Speech Rhythm']
+                        if score >= 90:
+                            st.success("Excellent: The speech has very natural rhythm with appropriate pauses and pacing.")
+                        elif score >= 75:
+                            st.info("Good: The speech has a natural flow with good pacing.")
+                        else:
+                            st.warning("Moderate: The rhythm could be more natural with better pause patterns.")
+            else:
+                st.warning("Voice characteristics profile requires generating a cloned voice first.")
                 
-            fig, ax = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
-            
-            # Plot original audio waveform
-            librosa.display.waveshow(orig, sr=sr, ax=ax[0], color='#1f77b4')
-            ax[0].set_title('Original Audio Waveform')
-            ax[0].set_ylabel('Amplitude')
-            ax[0].grid(True, alpha=0.3)
-            
-            # Plot cloned audio waveform
-            librosa.display.waveshow(clone, sr=sr, ax=ax[1], color='#ff7f0e')
-            ax[1].set_title('Cloned Audio Waveform')
-            ax[1].set_xlabel('Time (s)')
-            ax[1].set_ylabel('Amplitude')
-            ax[1].grid(True, alpha=0.3)
-            
-            plt.tight_layout()
-            st.pyplot(fig)
         except Exception as e:
-            st.error(f"Error generating waveform comparison: {str(e)}")
-            # Provide a placeholder image
-            st.image("https://via.placeholder.com/800x400?text=Waveform+Comparison+Error", use_column_width=True)
-    
-    def _plot_spectrograms(self) -> None:
-        """Plot spectrograms of original and cloned audio for comparison."""
-        try:
-            orig = st.session_state.orig_wav
-            clone = st.session_state.cloned_wav
-            sr = st.session_state.sr
-            
-            if orig is None or clone is None or sr is None:
-                st.warning("Missing data for spectrogram comparison")
-                return
-                
-            # Compute spectrograms
-            D1 = librosa.stft(orig)
-            S1 = librosa.amplitude_to_db(np.abs(D1), ref=np.max)
-            D2 = librosa.stft(clone)
-            S2 = librosa.amplitude_to_db(np.abs(D2), ref=np.max)
-            
-            # Plot spectrograms
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("**Original Spectrogram**")
-                fig, ax = plt.subplots(figsize=(10, 5))
-                img = librosa.display.specshow(
-                    S1, 
-                    sr=sr, 
-                    x_axis="time", 
-                    y_axis="log", 
-                    ax=ax, 
-                    cmap='viridis'
-                )
-                ax.set_title("Original Voice Spectrogram")
-                fig.colorbar(img, ax=ax, format="%+2.0f dB")
-                st.pyplot(fig)
-            
-            with col2:
-                st.markdown("**Cloned Spectrogram**")
-                fig, ax = plt.subplots(figsize=(10, 5))
-                img = librosa.display.specshow(
-                    S2, 
-                    sr=sr, 
-                    x_axis="time", 
-                    y_axis="log", 
-                    ax=ax,
-                    cmap='viridis'
-                )
-                ax.set_title("Cloned Voice Spectrogram")
-                fig.colorbar(img, ax=ax, format="%+2.0f dB")
-                st.pyplot(fig)
-        except Exception as e:
-            st.error(f"Error generating spectrograms: {str(e)}")
+            st.error(f"Error in voice characteristics profile: {str(e)}")
+            st.exception(e)  # Show detailed error for debugging
 
 if __name__ == "__main__":
     VoiceCloningApp()
