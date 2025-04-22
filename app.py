@@ -12,6 +12,9 @@ import threading
 from typing import Tuple, Optional, Dict, Any
 import io
 import base64
+from python_speech_features import mfcc
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
 
 from main import Main
 
@@ -261,71 +264,76 @@ class VoiceCloningApp:
                 self._run_voice_cloning()
     
     def _run_voice_cloning(self) -> None:
-        """Run the voice cloning process with progress tracking."""
+        """Run the voice cloning process with progress tracking and status container per stage."""
         st.session_state.processing = True
-        
-        # Progress tracking
         progress = st.progress(0)
-        status = st.empty()
-        
+
+        def log_time(action, func):
+            start = time.time()
+            func()
+            st.caption(f"{time.time() - start:.2f} seconds")
+
+        def initialize_models():
+            if st.session_state.model_instance is None:
+                st.write("Loading Speech Encoder and Synthesizer models...")
+                st.session_state.model_instance = Main(
+                    original_encoder=(st.session_state.encoder_choice == "Baseline Model (LSTM)")
+                )
+            else:
+                st.write("Speech Encoder and Synthesizer models already loaded.")
+
+        def analyze_voice_patterns():
+            st.write("Extracting speaker embeddings from the reference audio...")
+            time.sleep(0.3)
+
+        def synthesize_voice():
+            st.write("Generating spectrogram from text and speaker embeddings...")
+            main = st.session_state.model_instance
+            st.session_state.cloned_wav = main.clone_audio(
+                st.session_state.orig_wav,
+                st.session_state.use_vocoder,
+                st.session_state.text_input
+            )
+
+        def post_process_audio():
+            st.write("Applying post-processing to the generated audio...")
+            time.sleep(0.2)
+
+        def save_output():
+            st.write("Encoding the generated audio to WAV format...")
+            audio_bytes = io.BytesIO()
+            sf.write(audio_bytes, st.session_state.cloned_wav, st.session_state.sr, format='WAV')
+            audio_bytes.seek(0)
+            sf.write("cloned.wav", st.session_state.cloned_wav, st.session_state.sr)
+
         steps = [
-            ("Initializing models", 15),
-            ("Analyzing voice patterns", 30),
-            ("Synthesizing voice", 75),
-            ("Post-processing audio", 90),
-            ("Saving output", 100),
+            ("Initializing models", 15, initialize_models, False),
+            ("Analyzing voice patterns", 30, analyze_voice_patterns, False),
+            ("Synthesizing voice", 75, synthesize_voice, False),
+            ("Post-processing audio", 90, post_process_audio, False),
+            ("Saving output", 100, save_output, False),
         ]
-        
+
         try:
-            for idx, (msg, pct) in enumerate(steps):
-                status.text(f"{msg}...")
-                
-                with st.spinner(msg):
-                    if msg == "Initializing models" and st.session_state.model_instance is None:
-                        # Only initialize if not already loaded
-                        main = Main(original_encoder=(st.session_state.encoder_choice == "Baseline Model (LSTM)"))
-                        st.session_state.model_instance = main
-                        time.sleep(0.3)  # Simulate processing time
-                    
-                    elif msg == "Analyzing voice patterns":
-                        time.sleep(0.3)  # Simulate processing time
-                    
-                    elif msg == "Synthesizing voice":
-                        main_instance = st.session_state.model_instance
-                        if main_instance is None:
-                            main_instance = Main(original_encoder=(st.session_state.encoder_choice == "Baseline Model (LSTM)"))
-                            st.session_state.model_instance = main_instance
-                            
-                        cloned = main_instance.clone_audio(
-                            st.session_state.orig_wav, 
-                            st.session_state.use_vocoder, 
-                            st.session_state.text_input
-                        )
-                        st.session_state.cloned_wav = cloned
-                    
-                    elif msg == "Post-processing audio":
-                        time.sleep(0.2)  # Simulate processing time
-                    
-                    elif msg == "Saving output":
-                        # Save to a BytesIO object instead of a file
-                        audio_bytes = io.BytesIO()
-                        sf.write(audio_bytes, st.session_state.cloned_wav, st.session_state.sr, format='WAV')
-                        audio_bytes.seek(0)
-                        
-                        # Also save to a file for the audio element
-                        sf.write("cloned.wav", st.session_state.cloned_wav, st.session_state.sr)
-                
+            for label, pct, fn, expand in steps:
+                with st.status(label=label, state="running", expanded=expand):
+                    try:
+                        log_time(label, fn)
+                    except Exception as step_error:
+                        st.error(f"Step failed: {label}")
+                        raise step_error
                 progress.progress(pct)
-            
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            status.success("Voice cloning process finished. The generated audio is available for listening and download in the 'Output & Comparison' tab")
-        
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.success("**Success:** Voice cloning process finished! The generated audio is available in the 'Output & Comparison' tab.")
+
         except Exception as e:
-            st.error(f"Error during voice cloning: {str(e)}")
-            st.error(f"Details: {str(e)}")
-        
+            st.error("**Error:** Voice cloning failed.")
+            st.exception(e)
+
         finally:
             st.session_state.processing = False
+
     
     def _setup_output_tab(self) -> None:
         """Setup the output and comparison tab."""
