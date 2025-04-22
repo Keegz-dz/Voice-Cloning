@@ -442,6 +442,13 @@ class VoiceCloningApp:
                 plt.tight_layout()
                 st.pyplot(fig)
                 
+                # # Save with high DPI
+                # buf = io.BytesIO()
+                # fig.savefig(buf, format="png", bbox_inches='tight', dpi=300)
+                # buf.seek(0)
+                # # Display high-res image at desired size
+                # st.image(buf, use_container_width=False, width=500)
+                
                 # Display voice characteristic interpretations in collapsible sections
                 st.markdown("### Characteristic Details")
                 
