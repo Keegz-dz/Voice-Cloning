@@ -95,7 +95,7 @@ def trim_long_silences(wav: np.ndarray, sample_rate: int = TARGET_SAMPLE_RATE) -
     Returns:
         np.ndarray: Audio with long silences removed, preserving short pauses
     """
-    # Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning)
+    # Modified work based on original code using Resemblyzer (https://github.com/resemble-ai/Resemblyzer)
     # The following code is licensed under the MIT License
     
     # Calculate samples per window based on VAD_WINDOW_LENGTH constant
