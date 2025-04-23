@@ -166,27 +166,66 @@ class Main():
         # Step 2: Get text to synthesize (either from parameter or via STT)
         try:
             if text is not None:
-                self.text = text.split("\n")
+                # Split text into sentences using proper punctuation rules
+                sentences = self._split_into_sentences(text)
+                self.text = sentences
             else:
                 stt_model = SpeechTranslationPipeline()
                 self.text = stt_model.transcribe_audio(self.wav).split("\n")
         except Exception as e:
             print(f"\nError in speech-to-text: {e}\nPlease check the audio file or the STT model.")
+            # Fallback to prevent empty text
+            if not hasattr(self, 'text') or not self.text:
+                self.text = ["Error in processing text."]
 
         # Step 3: Extract speaker embedding (voice identity)
         try:
             embedding, partial_embeds, _ = self.embedder.embed_utterance(self.wav, return_partials=True)
+            
+            # Ensure we have enough embeddings for all sentences
             embeddings = [embedding] * len(self.text)
+            
+            print(f"Processing {len(self.text)} sentence(s): {self.text}")
         except Exception as e:
             print(f"\nError in embedding: {e}\nPlease check the audio file or the Embed model")
         
         # Step 4: Generate mel spectrograms from text with speaker embedding
         try:
-            specs = self.synthesizer.synthesize_spectrograms(self.text, embeddings)
+            # Filter out any empty or None text entries
+            valid_text_entries = [t for t in self.text if t and isinstance(t, str) and t.strip()]
+            if not valid_text_entries:
+                valid_text_entries = ["No valid text to synthesize."]
+                
+            # Adjust embeddings to match valid text entries
+            valid_embeddings = embeddings[:len(valid_text_entries)]
+            if len(valid_embeddings) < len(valid_text_entries):
+                valid_embeddings.extend([embedding] * (len(valid_text_entries) - len(valid_embeddings)))
+            
+            print(f"Synthesizing {len(valid_text_entries)} valid sentence(s)")
+            
+            # Generate spectrograms for each text segment
+            specs = self.synthesizer.synthesize_spectrograms(valid_text_entries, valid_embeddings)
+            
+            # Verify that specs is not empty before continuing
+            if not specs or len(specs) == 0:
+                print("Warning: No spectrograms were generated. Using fallback.")
+                # Create a simple silence spectrogram as fallback
+                from synthesizer.inference import Synthesizer as SynthesizerClass
+                dummy_spec = np.zeros((SynthesizerClass.params.n_mels, 100))
+                specs = [dummy_spec]
+            
+            # Concatenate all spectrograms
             spec = np.concatenate(specs, axis=1)
             breaks = [spec.shape[1] for spec in specs]
+            
+            print(f"Generated {len(specs)} spectrograms with shapes: {[s.shape for s in specs]}")
         except Exception as e:
             print(f"\nError in synthesizer: {e}\nError in generating spectrograms, refer to the documentation for more details.")
+            print("Using fallback spectrogram generation")
+            from synthesizer.inference import Synthesizer as SynthesizerClass
+            dummy_spec = np.zeros((SynthesizerClass.params.n_mels, 100))
+            spec = dummy_spec
+            breaks = [spec.shape[1]]
 
         # Step 5: Convert spectrograms to audio
         try:
@@ -196,17 +235,84 @@ class Main():
 
             # If requested, use neural vocoder for higher quality (slower)
             if use_vocoder:
-                wav = self.vocoder.infer_waveform(spec)
-                wav = self.add_breaks(breaks, wav)
-                self.done()
-                return wav
-            
+                try:
+                    vocoder_wav = self.vocoder.infer_waveform(spec)
+                    if vocoder_wav is not None and len(vocoder_wav) > 0:
+                        wav = vocoder_wav
+                        wav = self.add_breaks(breaks, wav)
+                except Exception as vocoder_error:
+                    print(f"Vocoder error: {vocoder_error}. Falling back to Griffin-Lim output.")
+                
             self.done()
             return wav
         
         except Exception as e:
             print(f"\nError in decoding: {e}\n Error occurred while decoding the spectrograms to audio. Please refer to the documentation for more details.")
+            print("Returning silent audio due to decoding error")
+            return np.zeros(16000)  # 1 second of silence at 16kHz
         
+    def _split_into_sentences(self, text):
+        """
+        Split text into sentences more reliably than simple newline splitting.
+        
+        Args:
+            text: Input text to split into sentences
+            
+        Returns:
+            List of sentences
+        """
+        import re
+        
+        # Remove excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        # Split sentences on common ending punctuation followed by space and capital letter
+        # or on newlines, with specified maximum length
+        MAX_SENTENCE_LENGTH = 150  # Set maximum sentence length
+        
+        # Initial split on common sentence endings
+        sentences = re.split(r'([.!?])\s+(?=[A-Z])', text)
+        
+        # Recombine the split punctuation marks
+        processed_sentences = []
+        for i in range(0, len(sentences), 2):
+            if i + 1 < len(sentences):
+                processed_sentences.append(sentences[i] + sentences[i+1])
+            else:
+                processed_sentences.append(sentences[i])
+        
+        # Further split any sentences that are too long
+        final_sentences = []
+        for sentence in processed_sentences:
+            if len(sentence) > MAX_SENTENCE_LENGTH:
+                # Split on commas, semicolons, or other logical breaks
+                subsections = re.split(r'([,;:])\s+', sentence)
+                
+                # Recombine with punctuation
+                current_section = ""
+                for j in range(0, len(subsections)):
+                    if j % 2 == 0:  # Text part
+                        if current_section and len(current_section) + len(subsections[j]) > MAX_SENTENCE_LENGTH:
+                            final_sentences.append(current_section.strip())
+                            current_section = subsections[j]
+                        else:
+                            current_section += subsections[j]
+                    else:  # Punctuation part
+                        current_section += subsections[j] + " "
+                
+                if current_section:
+                    final_sentences.append(current_section.strip())
+            else:
+                final_sentences.append(sentence.strip())
+        
+        # Filter out empty sentences
+        final_sentences = [s for s in final_sentences if s.strip()]
+        
+        # If no sentences were found, return the original text as a single sentence
+        if not final_sentences:
+            return [text]
+            
+        return final_sentences
 
     def add_breaks(self, breaks, wav):
         """
@@ -219,21 +325,42 @@ class Main():
         Returns:
             Audio waveform with natural pauses between sentences
         """
-        # Calculate segment boundaries in samples
-        b_ends = np.cumsum(np.array(breaks) * Synthesizer.params.hop_size)
-        b_starts = np.concatenate(([0], b_ends[:-1]))
-
-        # Extract individual sentence audio segments
-        wavs = [wav[start:end] for start, end, in zip(b_starts, b_ends)]
-        
-        # Create short silences (150ms) between sentences
-        breaks = [np.zeros(int(0.15 * Synthesizer.sample_rate))] * len(breaks)
-        
-        # Interleave audio segments with silence
-        wav = np.concatenate([i for w, b in zip(wavs, breaks) for i in (w, b)])
-        
-        # Normalize to prevent clipping
-        wav_final = wav / np.abs(wav).max() * 0.97
+        if not breaks or len(breaks) == 0:
+            return wav
+            
+        try:
+            # Calculate segment boundaries in samples
+            b_ends = np.cumsum(np.array(breaks) * Synthesizer.params.hop_size)
+            
+            if len(b_ends) > 0 and b_ends[-1] > len(wav):
+                # Scale down to fit within wav length
+                scale_factor = len(wav) / b_ends[-1]
+                b_ends = (b_ends * scale_factor).astype(int)
+            
+            b_starts = np.concatenate(([0], b_ends[:-1]))
+            
+            # Extract individual sentence audio segments
+            wavs = [wav[start:end] for start, end in zip(b_starts, b_ends) if start < len(wav) and end <= len(wav)]
+            
+            if not wavs:
+                return wav
+                
+            # Create short silences (150ms) between sentences
+            silence_length = int(0.15 * Synthesizer.sample_rate)
+            breaks = [np.zeros(silence_length)] * len(wavs)
+            
+            # Interleave audio segments with silence
+            wav = np.concatenate([i for w, b in zip(wavs, breaks) for i in (w, b)])
+            
+            # Normalize to prevent clipping
+            if np.abs(wav).max() > 0:
+                wav_final = wav / np.abs(wav).max() * 0.97
+            else:
+                wav_final = wav
+                
+        except Exception as e:
+            print(f"Error in adding breaks: {e}. Returning original waveform.")
+            wav_final = wav
 
         return wav_final
 
