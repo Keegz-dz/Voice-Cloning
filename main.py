@@ -1,9 +1,9 @@
 import torch
 import librosa
 import warnings
+import logging
 import numpy as np
 from pathlib import Path
-from typing import Union, List
 
 import params as p
 from temp.audio import preprocess_wav
@@ -15,6 +15,7 @@ from speech_encoder import SpeechEncoder
 from speech_encoder_v2_updated import SpeechEncoderV2
 from data_preprocessing import audio_preprocessing
 from speech_2_text import SpeechTranslationPipeline
+
 
 class Main():
     """
@@ -33,6 +34,9 @@ class Main():
             original_encoder: If True, uses the baseline LSTM encoder model.
                              If False, uses the improved transformer-based encoder.
         """
+        # Set up logging
+        self.logger = self._setup_logger()
+        
         # Suppress non-critical warnings
         warnings.filterwarnings("ignore")
 
@@ -40,8 +44,13 @@ class Main():
         try:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             self.loss_device = torch.device("cpu")
+            self.logger.info(f"Using device: {self.device}")
         except Exception as e:
-            print(f"\nError in setting device: {e}\n Please check your CUDA installation.")
+            self.logger.error(f"Error in setting device: {e}")
+            self.logger.error("Please check your CUDA installation.")
+            # Fallback to CPU
+            self.device = torch.device("cpu")
+            self.loss_device = torch.device("cpu")
         
         # Initialize the three core neural models
         self.encoder = self.__init__encoder(original_encoder)
@@ -51,8 +60,28 @@ class Main():
         # Create the embedding utility for voice identity extraction
         try:
             self.embedder = Embed(self.encoder)
+            self.logger.info("Successfully initialized embedder.")
         except Exception as e:
-            print(f"\nError in initializing embedder: {e}\nPlease read the documentations incase of errors.")
+            self.logger.error(f"Error in initializing embedder: {e}")
+            self.logger.error("Please read the documentations incase of errors.")
+            self.embedder = None
+
+    def _setup_logger(self):
+        """Set up and return a configured logger."""
+        logger = logging.getLogger("VoiceCloning")
+        logger.setLevel(logging.INFO)
+        
+        # Only add handler if not already set up
+        if not logger.handlers:
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            handler.setFormatter(formatter)
+            logger.addHandler(handler)
+        
+        return logger
 
     def __init__encoder(self, original_encoder, 
                       encoder_path: str = "models/speech_encoder_transformer_updated/encoder_073500_loss_0.0724.pt"):
@@ -72,26 +101,33 @@ class Main():
         try:
             if original_encoder:
                 # Initialize legacy LSTM-based encoder
+                self.logger.info("Loading legacy LSTM encoder model...")
                 encoder = SpeechEncoder(self.device, self.loss_device)
                 checkpoints = torch.load(
                     "models/speech_encoder_lstm/encoder.pt",
                     map_location=self.device
                 )
                 encoder.load_state_dict(checkpoints['model_state'])
+                self.logger.info("Successfully loaded the LSTM encoder model.")
                 return encoder
 
             # Initialize improved transformer-based encoder with attention mechanism
+            self.logger.info("Loading transformer encoder model...")
             encoder = SpeechEncoderV2(self.device, self.device)
             checkpoints = torch.load(
                 encoder_path,
                 map_location=self.device
             )
             encoder.load_state_dict(checkpoints['model_state'])
-            print("Successfully loaded the speaker encoder model.")
+            self.logger.info("Successfully loaded the speaker encoder model.")
             return encoder
 
+        except FileNotFoundError as e:
+            self.logger.error(f"Encoder model file not found: {e}")
+            return None
         except Exception as e:
-            print(f"\nError in loading encoder: {e}\nPlease check the encoder model path.")
+            self.logger.error(f"Error in loading encoder: {e}")
+            self.logger.error("Please check the encoder model path.")
             return None
     
     def __init__synthesizer(self, synthesizer_path: Path = Path("models/synthesizer/synthesizer.pt")):
@@ -109,11 +145,18 @@ class Main():
             Initialized synthesizer model
         """
         try:
+            self.logger.info("Loading synthesizer model...")
             synthesizer = Synthesizer(synthesizer_path)
             synthesizer.load()
+            self.logger.info("Successfully loaded the synthesizer model.")
+            return synthesizer
+        except FileNotFoundError as e:
+            self.logger.error(f"Synthesizer model file not found: {e}")
+            return None
         except Exception as e:
-            print(f"Error in loading synthesizer: {e}\nPlease check the synthesizer model path.")
-        return synthesizer
+            self.logger.error(f"Error in loading synthesizer: {e}")
+            self.logger.error("Please check the synthesizer model path.")
+            return None
 
     def __init__vocoder(self, vocoder_path: str = "models/vocoder/vocoder.pt"):
         """
@@ -129,11 +172,18 @@ class Main():
             Initialized vocoder model
         """
         try:
+            self.logger.info("Loading vocoder model...")
             vocoder = Vocoder()
             vocoder.load_model(vocoder_path)
+            self.logger.info("Successfully loaded the vocoder model.")
+            return vocoder
+        except FileNotFoundError as e:
+            self.logger.error(f"Vocoder model file not found: {e}")
+            return None
         except Exception as e:
-            print(f"\nError in loading vocoder: {e}\nPlease check the vocoder model path.")
-        return vocoder
+            self.logger.error(f"Error in loading vocoder: {e}")
+            self.logger.error("Please check the vocoder model path.")
+            return None
 
     def clone_audio(self, audio, use_vocoder: bool = False, text = None):
         """
@@ -154,26 +204,44 @@ class Main():
         Returns:
             Synthesized audio as numpy array
         """
-        print("\nModel Initializations Completed.")  
-        print("\nStarting audio generation...")
+        self.logger.info("Model Initializations Completed.")  
+        self.logger.info("Starting audio generation...")
+        
+        # Check if required models are initialized
+        if not all([self.encoder, self.synthesizer, self.vocoder, self.embedder]):
+            self.logger.error("Cannot proceed - one or more models failed to initialize")
+            return np.zeros(16000)  # Return 1 second of silence
         
         # Step 1: Preprocess the input audio
         try:
             self.wav = preprocess_wav(audio, p.sample_rate)
+            self.logger.info("Audio preprocessing completed.")
         except Exception as e:
-            print(f"\nError in audio preprocessing: {e}\nPlease provide a valid audio file.")
+            self.logger.error(f"Error in audio preprocessing: {e}")
+            self.logger.error("Please provide a valid audio file.")
+            return np.zeros(16000)  # Return 1 second of silence
 
         # Step 2: Get text to synthesize (either from parameter or via STT)
         try:
             if text is not None:
+                self.logger.info("Using provided text for synthesis")
                 # Split text into sentences using proper punctuation rules
                 sentences = self._split_into_sentences(text)
                 self.text = sentences
             else:
+                self.logger.info("Transcribing audio to get text for synthesis")
                 stt_model = SpeechTranslationPipeline()
                 self.text = stt_model.transcribe_audio(self.wav).split("\n")
+                
+            # Filter empty entries
+            self.text = [t.strip() for t in self.text if t and t.strip()]
+            
+            if not self.text:
+                self.logger.warning("No valid text found. Using default text.")
+                self.text = ["Error in processing text."]
         except Exception as e:
-            print(f"\nError in speech-to-text: {e}\nPlease check the audio file or the STT model.")
+            self.logger.error(f"Error in speech-to-text: {e}")
+            self.logger.error("Please check the audio file or the STT model.")
             # Fallback to prevent empty text
             if not hasattr(self, 'text') or not self.text:
                 self.text = ["Error in processing text."]
@@ -185,9 +253,11 @@ class Main():
             # Ensure we have enough embeddings for all sentences
             embeddings = [embedding] * len(self.text)
             
-            print(f"Processing {len(self.text)} sentence(s): {self.text}")
+            self.logger.info(f"Processing {len(self.text)} sentence(s): {self.text}")
         except Exception as e:
-            print(f"\nError in embedding: {e}\nPlease check the audio file or the Embed model")
+            self.logger.error(f"Error in embedding: {e}")
+            self.logger.error("Please check the audio file or the Embed model")
+            return np.zeros(16000)  # Return 1 second of silence
         
         # Step 4: Generate mel spectrograms from text with speaker embedding
         try:
@@ -201,14 +271,14 @@ class Main():
             if len(valid_embeddings) < len(valid_text_entries):
                 valid_embeddings.extend([embedding] * (len(valid_text_entries) - len(valid_embeddings)))
             
-            print(f"Synthesizing {len(valid_text_entries)} valid sentence(s)")
+            self.logger.info(f"Synthesizing {len(valid_text_entries)} valid sentence(s)")
             
             # Generate spectrograms for each text segment
             specs = self.synthesizer.synthesize_spectrograms(valid_text_entries, valid_embeddings)
             
             # Verify that specs is not empty before continuing
             if not specs or len(specs) == 0:
-                print("Warning: No spectrograms were generated. Using fallback.")
+                self.logger.warning("No spectrograms were generated. Using fallback.")
                 # Create a simple silence spectrogram as fallback
                 from synthesizer.inference import Synthesizer as SynthesizerClass
                 dummy_spec = np.zeros((SynthesizerClass.params.n_mels, 100))
@@ -218,10 +288,11 @@ class Main():
             spec = np.concatenate(specs, axis=1)
             breaks = [spec.shape[1] for spec in specs]
             
-            print(f"Generated {len(specs)} spectrograms with shapes: {[s.shape for s in specs]}")
+            self.logger.info(f"Generated {len(specs)} spectrograms with shapes: {[s.shape for s in specs]}")
         except Exception as e:
-            print(f"\nError in synthesizer: {e}\nError in generating spectrograms, refer to the documentation for more details.")
-            print("Using fallback spectrogram generation")
+            self.logger.error(f"Error in synthesizer: {e}")
+            self.logger.error("Error in generating spectrograms, refer to the documentation for more details.")
+            self.logger.error("Using fallback spectrogram generation")
             from synthesizer.inference import Synthesizer as SynthesizerClass
             dummy_spec = np.zeros((SynthesizerClass.params.n_mels, 100))
             spec = dummy_spec
@@ -236,19 +307,24 @@ class Main():
             # If requested, use neural vocoder for higher quality (slower)
             if use_vocoder:
                 try:
+                    self.logger.info("Using neural vocoder for higher quality audio...")
                     vocoder_wav = self.vocoder.infer_waveform(spec)
                     if vocoder_wav is not None and len(vocoder_wav) > 0:
                         wav = vocoder_wav
                         wav = self.add_breaks(breaks, wav)
+                        self.logger.info("Vocoder audio generation successful.")
+                    else:
+                        self.logger.warning("Vocoder returned empty audio. Using Griffin-Lim output.")
                 except Exception as vocoder_error:
-                    print(f"Vocoder error: {vocoder_error}. Falling back to Griffin-Lim output.")
+                    self.logger.error(f"Vocoder error: {vocoder_error}. Falling back to Griffin-Lim output.")
                 
             self.done()
             return wav
         
         except Exception as e:
-            print(f"\nError in decoding: {e}\n Error occurred while decoding the spectrograms to audio. Please refer to the documentation for more details.")
-            print("Returning silent audio due to decoding error")
+            self.logger.error(f"Error in decoding: {e}")
+            self.logger.error("Error occurred while decoding the spectrograms to audio. Please refer to the documentation for more details.")
+            self.logger.error("Returning silent audio due to decoding error")
             return np.zeros(16000)  # 1 second of silence at 16kHz
         
     def _split_into_sentences(self, text):
@@ -325,7 +401,7 @@ class Main():
         Returns:
             Audio waveform with natural pauses between sentences
         """
-        if not breaks or len(breaks) == 0:
+        if not breaks or len(breaks) <= 1:
             return wav
             
         try:
@@ -339,12 +415,17 @@ class Main():
             
             b_starts = np.concatenate(([0], b_ends[:-1]))
             
-            # Extract individual sentence audio segments
-            wavs = [wav[start:end] for start, end in zip(b_starts, b_ends) if start < len(wav) and end <= len(wav)]
+            # Check for invalid segment boundaries
+            valid_segments = [(start, end) for start, end in zip(b_starts, b_ends) 
+                             if start < len(wav) and end <= len(wav) and start < end]
             
-            if not wavs:
+            if not valid_segments:
+                self.logger.warning("No valid segments found for adding breaks. Returning original waveform.")
                 return wav
                 
+            # Extract individual sentence audio segments
+            wavs = [wav[start:end] for start, end in valid_segments]
+            
             # Create short silences (150ms) between sentences
             silence_length = int(0.15 * Synthesizer.sample_rate)
             breaks = [np.zeros(silence_length)] * len(wavs)
@@ -359,11 +440,21 @@ class Main():
                 wav_final = wav
                 
         except Exception as e:
-            print(f"Error in adding breaks: {e}. Returning original waveform.")
+            self.logger.error(f"Error in adding breaks: {e}. Returning original waveform.")
             wav_final = wav
 
         return wav_final
 
     def done(self):
         """Log completion of audio generation process."""
-        print("\nAudio Generation Successfully Completed!")
+        self.logger.info("Audio Generation Successfully Completed!")
+    
+    @property
+    def is_ready(self):
+        """Check if all models are properly initialized and ready for use."""
+        return all([
+            self.encoder is not None,
+            self.synthesizer is not None,
+            self.vocoder is not None,
+            self.embedder is not None
+        ])
