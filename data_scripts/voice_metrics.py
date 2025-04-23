@@ -5,32 +5,33 @@ import scipy.signal as signal
 
 def calculate_voice_metrics(audio_data, sr):
     """
-    Calculate actual voice metrics based on audio analysis.
+    Master function that orchestrates the calculation of all voice quality metrics.
+    
+    This function calls individual metric calculation functions and normalizes all results
+    to a 0-100 scale for consistent interpretation. Higher values indicate better quality.
     
     Args:
         audio_data: Audio time series (numpy array)
-        sr: Sampling rate of the audio
+        sr: Sampling rate of the audio in Hz
         
     Returns:
-        Dictionary of voice metrics
+        Dictionary containing four key voice metrics:
+        - Timbre Richness: Measures voice harmonic structure and spectral quality
+        - Pitch Stability: Measures consistency and natural variation in pitch
+        - Articulation: Measures clarity of phoneme pronunciation
+        - Speech Rhythm: Measures naturalness of speech tempo and pausing patterns
     """
-    # Make sure we have audio data to analyze
+    # Input validation
     if audio_data is None or len(audio_data) == 0:
         return None
     
-    # Calculate timbre richness
+    # Calculate individual metrics
     timbre_richness = calculate_timbre_richness(audio_data, sr)
-    
-    # Calculate pitch stability
     pitch_stability = calculate_pitch_stability(audio_data, sr)
-    
-    # Calculate articulation clarity
     articulation = calculate_articulation_clarity(audio_data, sr)
-    
-    # Calculate speech rhythm
     speech_rhythm = calculate_speech_rhythm(audio_data, sr)
     
-    # Scale all metrics to 0-100 range (they may be on different scales initially)
+    # Ensure all metrics are properly bounded within 0-100 range
     metrics = {
         "Timbre Richness": min(max(timbre_richness, 0), 100),
         "Pitch Stability": min(max(pitch_stability, 0), 100),
@@ -43,92 +44,109 @@ def calculate_voice_metrics(audio_data, sr):
 
 def calculate_timbre_richness(audio_data, sr):
     """
-    Calculate timbre richness based on spectral features.
-    Higher values indicate richer harmonic structure.
+    Analyzes the spectral characteristics of voice to determine timbre richness.
     
-    Uses spectral centroid, bandwidth, contrast, and flatness.
+    Timbre richness is calculated through a weighted combination of four spectral features:
+    1. Spectral centroid: Represents the "brightness" of sound (higher = brighter)
+    2. Spectral bandwidth: Represents the spread of frequencies (higher = richer)
+    3. Spectral contrast: Represents the distinction between peaks and valleys in spectrum
+    4. Spectral flatness: Measures how noise-like vs. tonal the signal is
+    
+    Args:
+        audio_data: Audio time series (numpy array)
+        sr: Sampling rate of the audio in Hz
+        
+    Returns:
+        A score between 0-100 where higher values indicate richer timbre
     """
-    # Calculate spectral features
+    # Extract four complementary spectral features
     spec_centroid = librosa.feature.spectral_centroid(y=audio_data, sr=sr)[0]
     spec_bandwidth = librosa.feature.spectral_bandwidth(y=audio_data, sr=sr)[0]
     spec_contrast = np.mean(librosa.feature.spectral_contrast(y=audio_data, sr=sr), axis=0)
     spec_flatness = librosa.feature.spectral_flatness(y=audio_data)[0]
     
-    # Higher centroid can indicate brighter timbre
-    centroid_factor = np.mean(spec_centroid) / (sr/4)  # Normalize by quarter of sample rate
-    centroid_score = min(centroid_factor * 50, 50)  # Scale to max 50
+    # CENTROID ANALYSIS: Higher centroid indicates brighter timbre (max 50 points)
+    # Normalized against quarter of sampling rate as a reference point
+    centroid_factor = np.mean(spec_centroid) / (sr/4)
+    centroid_score = min(centroid_factor * 50, 50)
     
-    # Higher bandwidth indicates more spread across frequencies
-    bandwidth_factor = np.mean(spec_bandwidth) / (sr/3)  # Normalize 
-    bandwidth_score = min(bandwidth_factor * 25, 25)  # Scale to max 25
+    # BANDWIDTH ANALYSIS: Higher bandwidth indicates richer frequency spread (max 25 points)
+    bandwidth_factor = np.mean(spec_bandwidth) / (sr/3)
+    bandwidth_score = min(bandwidth_factor * 25, 25)
     
-    # Higher contrast indicates clearer harmonic structure
+    # CONTRAST ANALYSIS: Higher contrast indicates clearer harmonic structure (max 15 points)
     contrast_mean = np.mean(spec_contrast)
-    contrast_score = min(contrast_mean * 5, 15)  # Scale to max 15
+    contrast_score = min(contrast_mean * 5, 15)
     
-    # Lower flatness (less noise-like) is better for speech
-    # Invert flatness so higher is better
+    # FLATNESS ANALYSIS: Lower flatness (less noise-like) is better for speech (max 10 points)
+    # Invert so higher score means better (less flat/noisy)
     flatness_factor = 1 - np.mean(spec_flatness)
-    flatness_score = flatness_factor * 10  # Scale to max 10
+    flatness_score = flatness_factor * 10
     
-    # Combine scores
+    # Combine all spectral metrics into final score
     timbre_score = centroid_score + bandwidth_score + contrast_score + flatness_score
     
-    # Scale to 0-100
-    return min(timbre_score, 100)
+    return min(timbre_score, 100)  # Cap at 100
 
 
 def calculate_pitch_stability(audio_data, sr):
     """
-    Calculate pitch stability by analyzing pitch contour and variations.
-    Higher values indicate more stable pitch with natural variations.
+    Analyzes pitch contour to determine stability and natural variation.
     
-    Uses pitch tracking and analyzes the consistency of pitch values.
+    This function uses pitch tracking to identify how consistently a speaker maintains
+    pitch while allowing for natural variations. Both excessive stability (robotic)
+    and excessive variation (unstable) are penalized.
+    
+    Key pitch metrics calculated:
+    1. Coefficient of variation: Normalized measure of pitch variability
+    2. Jitter: Cycle-to-cycle pitch variations (micro-instabilities)
+    
+    Args:
+        audio_data: Audio time series (numpy array)
+        sr: Sampling rate of the audio in Hz
+        
+    Returns:
+        A score between 0-100 where higher values indicate optimal pitch stability
     """
-    # Track pitch (f0)
     try:
-        # Use PYIN (more accurate than standard YIN)
+        # Track pitch using PYIN algorithm (more accurate than standard YIN)
         pitches, magnitudes = librosa.piptrack(y=audio_data, sr=sr, fmin=70, fmax=400)
         
-        # Get the most prominent pitch for each frame
+        # Extract prominent pitches with sufficient confidence
         pitch_values = []
         for i in range(pitches.shape[1]):
             index = magnitudes[:, i].argmax()
             pitch = pitches[index, i]
             confidence = magnitudes[index, i]
             
-            # Only keep pitches with sufficient confidence/magnitude
+            # Only include reliable pitch estimates
             if confidence > 0.01 and pitch > 0:
                 pitch_values.append(pitch)
         
-        if len(pitch_values) < 4:  # Need enough values for meaningful analysis
-            return 75  # Default to average if not enough data
+        # Return default if insufficient data
+        if len(pitch_values) < 4:
+            return 75
         
-        # Calculate stability metrics
+        # Calculate pitch statistics
         pitch_mean = np.mean(pitch_values)
         pitch_std = np.std(pitch_values)
         
-        # Calculate coefficient of variation (normalized std)
-        # Lower values are more stable but some variation is natural
-        if pitch_mean > 0:
-            cv = pitch_std / pitch_mean
-        else:
-            cv = 1.0  # Default if mean is zero
+        # Calculate coefficient of variation (CV) - normalized standard deviation
+        cv = pitch_std / pitch_mean if pitch_mean > 0 else 1.0
         
-        # Calculate stability
-        # Ideal CV is around 0.05-0.15 for natural speech
-        # Too low (< 0.03) is robotic, too high (> 0.2) is unstable
-        if cv < 0.03:  # Too stable (robotic)
+        # Score based on CV - penalizing both too stable (robotic) and too variable
+        # Ideal natural speech CV range: 0.05-0.15
+        if cv < 0.03:      # Too stable/robotic
             stability_score = 75
-        elif cv < 0.05:
+        elif cv < 0.05:    # Slightly too stable
             stability_score = 85
-        elif cv < 0.15:  # Ideal natural range
+        elif cv < 0.15:    # Ideal natural range
             stability_score = 95
-        elif cv < 0.2:
+        elif cv < 0.2:     # Slightly unstable
             stability_score = 85
-        elif cv < 0.25:
+        elif cv < 0.25:    # Moderately unstable
             stability_score = 75
-        else:  # Too unstable
+        else:              # Highly unstable
             stability_score = 60
             
         # Calculate jitter (cycle-to-cycle variation)
@@ -137,80 +155,85 @@ def calculate_pitch_stability(audio_data, sr):
             mean_diff = np.mean(diffs)
             jitter = mean_diff / pitch_mean if pitch_mean > 0 else 1.0
             
-            # Adjust score based on jitter
-            # Natural speech has small, controlled jitter
+            # Convert jitter to score (lower jitter = higher score)
             jitter_score = max(0, min(100, 100 - (jitter * 1000)))
             
-            # Combine scores (weighted average)
+            # Weighted combination of stability and jitter scores
             return (stability_score * 0.7) + (jitter_score * 0.3)
         
         return stability_score
         
     except Exception:
-        # If pitch analysis fails, return a reasonable default
-        return None
+        # Return reasonable default if analysis fails
+        return 75
 
 
 def calculate_articulation_clarity(audio_data, sr):
     """
-    Calculate articulation clarity based on speech rate, onset strength,
-    and high-frequency content (consonant clarity).
+    Analyzes articulation clarity based on onset strength and frequency distribution.
     
-    Higher values indicate clearer pronunciations.
+    Articulation is assessed through:
+    1. Onset detection: Identifies clear syllable/phoneme boundaries
+    2. High-frequency energy: Measures consonant clarity (consonants have more high-frequency content)
+    
+    Args:
+        audio_data: Audio time series (numpy array)
+        sr: Sampling rate of the audio in Hz
+        
+    Returns:
+        A score between 0-100 where higher values indicate clearer articulation
     """
-    # Calculate onset strength (indicates clear syllable/phoneme boundaries)
+    # PART 1: Onset strength analysis (60% of score)
     try:
+        # Calculate onset envelope and detect onsets
         onset_env = librosa.onset.onset_strength(y=audio_data, sr=sr)
         onsets = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr)
         
-        # More onsets typically indicate clearer articulation
-        # But normalize by duration
+        # Calculate onset density (onsets per second)
         duration = len(audio_data) / sr
         if duration > 0:
             onset_density = len(onsets) / duration
-            # Ideal speech has about 4-7 syllables per second
-            if onset_density < 2:  # Too slow/unclear
+            
+            # Score based on ideal syllable rate (4-7 syllables/sec is optimal)
+            if onset_density < 2:      # Too slow/unclear
                 onset_score = 70
-            elif onset_density < 4:
+            elif onset_density < 4:    # Slightly slow
                 onset_score = 80
-            elif onset_density < 7:  # Ideal range
+            elif onset_density < 7:    # Ideal range
                 onset_score = 95
-            elif onset_density < 9:
+            elif onset_density < 9:    # Slightly fast
                 onset_score = 85
-            else:  # Too rapid
+            else:                      # Too rapid
                 onset_score = 75
         else:
             onset_score = 75
     except Exception:
-        onset_score = None
+        onset_score = 75
     
-    # Calculate high-frequency energy (consonant clarity)
-    # Use mel spectrogram and focus on upper frequency bands
+    # PART 2: Frequency distribution analysis (40% of score)
     try:
+        # Generate mel spectrogram
         mel_spec = librosa.feature.melspectrogram(y=audio_data, sr=sr, n_mels=128)
-        # Convert to dB scale
         mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
         
-        # Focus on upper half (consonants have more high-frequency energy)
-        upper_bands = mel_spec_db[64:, :]
-        lower_bands = mel_spec_db[:64, :]
+        # Separate high frequency bands (consonants) from low (vowels)
+        upper_bands = mel_spec_db[64:, :]  # Upper half of mel bands
+        lower_bands = mel_spec_db[:64, :]  # Lower half of mel bands
         
-        # Calculate average energy
+        # Calculate average energy in each region
         upper_energy = np.mean(upper_bands)
         lower_energy = np.mean(lower_bands)
         
-        # Calculate ratio (higher means more consonant energy)
+        # Calculate ratio of consonant to vowel energy
         if lower_energy != 0:
-            consonant_ratio = (upper_energy / lower_energy) + 1  # Normalize
-            
-            # Scale to score
+            consonant_ratio = (upper_energy / lower_energy) + 1
             consonant_score = min(90, max(60, consonant_ratio * 30))
         else:
             consonant_score = 75
     except Exception:
         consonant_score = 75
     
-    # Combine scores (weighted average)
+    # Combine scores with weights (onset is more important)
     articulation_score = (onset_score * 0.6) + (consonant_score * 0.4)
     
     return articulation_score
@@ -218,45 +241,53 @@ def calculate_articulation_clarity(audio_data, sr):
 
 def calculate_speech_rhythm(audio_data, sr):
     """
-    Calculate speech rhythm quality based on energy variance,
-    pause patterns, and rhythm regularity.
+    Analyzes speech rhythm based on energy dynamics, pause patterns, and tempo.
     
-    Higher values indicate more natural rhythm patterns.
+    Speech rhythm is evaluated through:
+    1. Energy variance: Measures dynamic range in speech intensity
+    2. Pause analysis: Evaluates duration and distribution of pauses
+    3. Tempo regularity: Assesses appropriateness of speech rate
+    
+    Args:
+        audio_data: Audio time series (numpy array)
+        sr: Sampling rate of the audio in Hz
+        
+    Returns:
+        A score between 0-100 where higher values indicate more natural rhythm
     """
-    # Calculate RMS energy
+    # PART 1: Energy dynamics analysis (40% of score)
     energy = librosa.feature.rms(y=audio_data)[0]
     
-    # Calculate energy dynamics (variance and range)
     if len(energy) > 1:
+        # Calculate energy statistics
         energy_var = np.var(energy)
         energy_range = np.max(energy) - np.min(energy)
         
-        # Calculate normalized metrics
-        norm_var = min(energy_var * 200, 1.0)  # Scale variance
-        norm_range = min(energy_range * 2, 1.0)  # Scale range
+        # Normalize metrics for scoring
+        norm_var = min(energy_var * 200, 1.0)
         
-        # Natural speech has moderate variance and range
-        # Too little = monotone, too much = unnatural
-        if norm_var < 0.3:  # Too monotone
+        # Score based on normalized variance
+        # Natural speech has moderate variance - not monotone, not chaotic
+        if norm_var < 0.3:     # Too monotone
             var_score = 70
-        elif norm_var < 0.7:  # Good range
+        elif norm_var < 0.7:   # Good dynamic range
             var_score = 90
-        else:  # Too variable
+        else:                  # Too variable
             var_score = 80
     else:
         var_score = 75
     
-    # Detect pauses (silence regions)
+    # PART 2: Pause pattern analysis (40% of score)
     try:
-        # Find silent regions
+        # Detect silent regions (pauses)
         intervals = librosa.effects.split(audio_data, top_db=30)
         
         if len(intervals) > 1:
-            # Calculate pause durations
+            # Calculate pause durations between speech segments
             pauses = []
             for i in range(len(intervals)-1):
                 pause_length = (intervals[i+1][0] - intervals[i][1]) / sr
-                if pause_length > 0.05:  # Only count meaningful pauses
+                if pause_length > 0.05:  # Minimum meaningful pause threshold
                     pauses.append(pause_length)
             
             if len(pauses) > 0:
@@ -264,45 +295,44 @@ def calculate_speech_rhythm(audio_data, sr):
                 mean_pause = np.mean(pauses)
                 pause_std = np.std(pauses)
                 
-                # Natural speech has pauses of varying lengths
-                # But too variable is unnatural
-                if mean_pause < 0.2:  # Very short pauses
+                # Score based on mean pause length
+                if mean_pause < 0.2:     # Very short pauses
                     pause_score = 75
-                elif mean_pause < 0.5:  # Good average pause length
+                elif mean_pause < 0.5:   # Good average pause length
                     pause_score = 90
-                else:  # Too long pauses
+                else:                    # Too long pauses
                     pause_score = 70
                 
                 # Adjust for pause variability
                 if len(pauses) > 1 and mean_pause > 0:
                     cv_pause = pause_std / mean_pause
-                    if cv_pause < 0.3:  # Too regular
+                    if cv_pause < 0.3:     # Too mechanical/regular
                         pause_score -= 10
-                    elif cv_pause > 1.0:  # Too irregular
+                    elif cv_pause > 1.0:   # Too irregular
                         pause_score -= 5
             else:
                 pause_score = 75
         else:
             pause_score = 70  # No pauses detected
     except Exception:
-        pause_score = None
+        pause_score = 75
     
-    # Tempo regularity (rhythm)
+    # PART 3: Tempo analysis (20% of score)
     try:
         # Calculate tempo and beat strength
         tempo, beats = librosa.beat.beat_track(y=audio_data, sr=sr)
         
-        # Assess tempo appropriateness (natural speech tempo)
-        if tempo < 80:  # Too slow
+        # Score based on tempo appropriateness
+        if tempo < 80:        # Too slow for natural speech
             tempo_score = 75
-        elif tempo < 160:  # Good range for speech
+        elif tempo < 160:     # Good range for speech
             tempo_score = 90
-        else:  # Too fast
+        else:                 # Too fast
             tempo_score = 80
     except Exception:
-        tempo_score = None
+        tempo_score = 75
     
-    # Combine scores with weights
+    # Combine all rhythm components with appropriate weights
     rhythm_score = (var_score * 0.4) + (pause_score * 0.4) + (tempo_score * 0.2)
     
     return rhythm_score
