@@ -7,6 +7,9 @@ from torch.utils.data import Dataset, DataLoader
 # Global constants
 PARTIALS_N_FRAMES = 160  # Number of frames in each partial utterance segment
 
+# Modified work based on original code by Corentin Jemine (https://github.com/CorentinJ/Real-Time-Voice-Cloning)
+# The following code is licensed under the MIT License
+    
 class RandomCycler:
     """
     A utility class that cycles through items in a constrained random order.
